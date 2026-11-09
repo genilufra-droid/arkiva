@@ -433,7 +433,7 @@ async function doSignUp(e){
 async function doForgot(e){
   e.preventDefault();
   const f=e.target;
-  const {error} = await sb.auth.resetPasswordForEmail(f.email.value.trim(),{redirectTo:SITE_URL});
+  const {error} = await sb.auth.resetPasswordForEmail(f.email.value.trim(),{redirectTo:SITE_URL+"?reset=1"});
   if(error) return renderAuth("forgot",{t:authErrText(error.message)});
   renderAuth("forgot",{ok:true,t:"Nëse email-i ekziston, linku i rikthimit u dërgua. Kontrollo inbox-in (edhe Spam)."});
 }
@@ -467,7 +467,8 @@ async function maybeEnter(){
 }
 function cleanUrl(){
   if(/type=recovery/.test(location.search+location.hash)) S.pendingRecovery=true;
-  if(location.search && /code=|token=|error=|type=/.test(location.search)) history.replaceState(null,"",location.pathname);
+  if(/[?&]reset=1/.test(location.search)) S.pendingRecovery=true;   /* markeri ynë deterministik në redirect */
+  if(location.search && /code=|token=|error=|type=|reset=/.test(location.search)) history.replaceState(null,"",location.pathname+location.hash);   /* RUAJ hash-in: token-at i lexon ende biblioteka */
 }
 
 async function boot(){
