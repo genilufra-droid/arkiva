@@ -1,0 +1,670 @@
+<!doctype html>
+<html lang="sq">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Arkiva · Protokolli dhe dosjet</title>
+<style>
+:root{--red:#b3141b;--red2:#8a0d13;--red3:#d8232a;--ink:#1d1d1f;--muted:#6e6e73;--line:#e5e5ea;--bg:#f5f5f7;--ok:#1f7a3d;--okbg:#e6f4ea;--warn:#8a5a00;--warnbg:#fff4df;--bad:#a4161a;--badbg:#fdeaea}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Segoe UI",Roboto,Inter,system-ui,Arial,sans-serif;color:var(--ink);background:var(--bg);font-size:14px}
+a{color:var(--red);text-decoration:none}a:hover{text-decoration:underline}
+button,input,select{font:inherit}
+
+/* header */
+.top{background:linear-gradient(90deg,#7a0a10,#b3141b 50%,#c51d24);color:#fff;height:64px;display:flex;align-items:center;gap:14px;padding:0 22px}
+.seal{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.35);display:grid;place-items:center;font-weight:800;letter-spacing:.5px;font-size:12px}
+.top .brand{font-weight:700;font-size:15px;line-height:1.2}
+.top .brand small{display:block;font-weight:400;opacity:.85;font-size:12px}
+.top nav{margin-left:auto;display:flex;gap:26px;align-items:center}
+.top nav a{color:#fff;opacity:.95;font-weight:500}
+.hero{background:radial-gradient(1200px 300px at 50% -40%,#d8232a,transparent),linear-gradient(180deg,#a10f16,#7a0a10);color:#fff;text-align:center;padding:40px 20px 34px}
+.hero h1{font-family:Georgia,"Times New Roman",serif;font-weight:400;letter-spacing:.5px;font-size:34px;margin:0 0 26px}
+.hero .cols{display:flex;justify-content:center;gap:38px;flex-wrap:wrap;max-width:1000px;margin:0 auto}
+.hero .col{flex:1;min-width:300px}
+.hero h2{font-family:Georgia,serif;font-weight:400;font-size:26px;margin:0 0 14px}
+.sbox{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.18);border-radius:8px;height:50px;padding:0 16px;max-width:100%}
+.sbox input{flex:1;background:transparent;border:0;color:#fff;font-size:16px;outline:none}
+.sbox input::placeholder{color:rgba(255,255,255,.85)}
+.adv{margin-top:20px;display:inline-flex;gap:8px;align-items:center;color:#fff;font-weight:600;cursor:pointer}
+
+/* layout */
+.wrap{display:grid;grid-template-columns:300px 1fr;gap:18px;padding:22px;max-width:1500px;margin:-26px auto 0;position:relative}
+.side{background:#fff;border-radius:10px;overflow:hidden;align-self:start;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.side .sh{padding:18px 20px;border-bottom:1px solid var(--line);font-weight:700;font-size:16px}
+.side .sec{padding:14px 20px 6px;font-size:11px;letter-spacing:.8px;color:var(--muted);text-transform:uppercase}
+.side a{display:flex;align-items:center;gap:10px;padding:11px 20px;color:var(--ink);font-weight:500;border-left:3px solid transparent}
+.side a:hover{background:#faf5f5;text-decoration:none}
+.side a.on{background:#fdeeee;color:var(--red);border-left-color:var(--red)}
+.side a .n{margin-left:auto;font-size:12px;color:var(--muted);background:var(--bg);border-radius:10px;padding:1px 8px}
+.side a.on .n{background:#fff;color:var(--red)}
+.ico{width:18px;height:18px;flex:none;color:var(--red)}
+.main{background:#fff;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.06);min-width:0}
+.crumbs{padding:16px 22px;border-bottom:1px solid var(--line);color:var(--muted);font-size:13px;display:flex;gap:8px;flex-wrap:wrap}
+.crumbs a{color:var(--muted)}
+.crumbs span.sep{opacity:.5}
+
+/* list */
+.toolbar{display:flex;gap:10px;align-items:center;padding:16px 22px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.toolbar h2{margin:0;font-size:20px;font-weight:700;flex:1}
+.pill{border:1px solid var(--line);border-radius:999px;padding:6px 12px;background:#fff;cursor:pointer;font-size:13px}
+.pill.on{background:var(--red);color:#fff;border-color:var(--red)}
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{font-size:12px;color:var(--muted);text-align:left;font-weight:600;padding:10px 22px;border-bottom:1px solid var(--line);background:#fbfbfc}
+.tbl td{padding:14px 22px;border-bottom:1px solid #f0f0f3;vertical-align:middle}
+.tbl tr:hover td{background:#fff9f9}
+.tbl .t{font-weight:600}
+.tbl .sub{color:var(--muted);font-size:12.5px;margin-top:3px}
+.tag{display:inline-block;font-size:11.5px;padding:3px 9px;border-radius:999px;font-weight:600;background:#eef0f4;color:#3a3f4b;white-space:nowrap}
+.tag.open{background:var(--warnbg);color:var(--warn)}
+.tag.closed{background:var(--okbg);color:var(--ok)}
+.tag.late{background:var(--badbg);color:var(--bad)}
+.tag.in{background:#e8f0fe;color:#1a4fb4}.tag.out{background:#f3e8ff;color:#6b21a8}
+.empty{padding:50px;text-align:center;color:var(--muted)}
+
+/* document page */
+.docwrap{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:0}
+@media(max-width:1100px){.docwrap{grid-template-columns:1fr}.wrap{grid-template-columns:1fr}.side{display:none}}
+.viewer{background:#e9e9ee;border-right:1px solid var(--line)}
+.vbar{display:flex;align-items:center;gap:10px;padding:10px 16px;background:#f2f2f5;border-bottom:1px solid var(--line);color:var(--muted);font-size:13px}
+.vbar .sp{flex:1}
+.vbar button{border:1px solid var(--line);background:#fff;border-radius:6px;width:30px;height:28px;cursor:pointer}
+.paper{margin:22px auto;width:min(560px,92%);aspect-ratio:1/1.41;background:#fff;box-shadow:0 6px 20px rgba(0,0,0,.14);padding:34px 36px;font-family:Georgia,"Times New Roman",serif;color:#222;font-size:12.5px;line-height:1.55;overflow:hidden}
+.paper .hd{text-align:center;border-bottom:2px double #333;padding-bottom:10px;margin-bottom:14px}
+.paper .hd b{font-size:15px;letter-spacing:.5px}
+.paper .meta{display:flex;justify-content:space-between;font-size:11px;color:#444;margin-bottom:12px}
+.paper p{margin:0 0 8px;text-align:justify}
+.paper .ln{height:7px;background:#e6e6ea;border-radius:2px;margin:9px 0}
+.info{padding:22px;background:#fff}
+.info h1{font-size:19px;margin:0 0 14px;line-height:1.3}
+.kv{display:grid;grid-template-columns:120px 1fr;gap:10px 12px;margin:0 0 16px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;font-weight:500}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:12px;border-radius:8px;border:1px solid var(--line);background:#fff;font-weight:600;cursor:pointer;margin-bottom:10px;color:var(--ink)}
+.btn.red{background:var(--red);border-color:var(--red);color:#fff}
+.btn.red:hover{background:var(--red2)}
+.btn.line:hover{border-color:var(--red);color:var(--red)}
+.hash{font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;background:#f7f7f9;border:1px solid var(--line);border-radius:6px;padding:8px;word-break:break-all;color:#333;margin-bottom:18px}
+.hl{font-size:12px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.rel{list-style:none;padding:0;margin:0 0 18px;border-top:1px solid var(--line)}
+.rel li{padding:11px 0;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:flex-start}
+.rel .dot{width:8px;height:8px;border-radius:50%;background:var(--red);margin-top:6px;flex:none}
+.rel .dot.g{background:var(--ok)}
+.rel .dot.o{background:#d99a00}
+.rel a{font-weight:600}
+.rel .sm{color:var(--muted);font-size:12.5px}
+.box{border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:16px;background:#fcfcfd}
+.box.late{background:var(--badbg);border-color:#f2c6c6}
+.stepper{display:flex;flex-direction:column;gap:12px;margin-top:6px}
+.step{display:flex;gap:10px;align-items:flex-start}
+.step .c{width:22px;height:22px;border-radius:50%;background:var(--ok);color:#fff;display:grid;place-items:center;font-size:12px;flex:none}
+.step .c.p{background:#d99a00}
+.step .c.o{background:var(--line);color:var(--muted)}
+.step small{color:var(--muted);display:block}
+.footer{text-align:center;color:var(--muted);font-size:12px;padding:30px}
+.toast{position:fixed;bottom:20px;right:20px;background:#1d1d1f;color:#fff;padding:12px 16px;border-radius:8px;display:none}
+
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px 18px;margin-top:6px}
+.fld label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:600}
+.fld input,.fld select{width:100%;height:38px;border:1px solid #d6d6dc;border-radius:8px;padding:0 10px;background:#fff}
+.fld.full{grid-column:1/-1}
+.fld .hint{font-size:12px;color:var(--muted);margin-top:4px}
+.radios{display:flex;gap:10px}
+.radios label{flex:1;display:flex;align-items:center;gap:8px;border:1px solid #d6d6dc;border-radius:8px;padding:10px 12px;cursor:pointer;color:var(--ink);font-weight:500;margin:0}
+.radios input{width:auto;height:auto;margin:0}
+.radios label:has(input:checked){border-color:var(--red);background:#fdeeee;color:var(--red)}
+.fbtn{display:flex;gap:12px;align-items:center;justify-content:flex-end;margin-top:22px;border-top:1px solid var(--line);padding-top:16px;flex-wrap:wrap}
+.fbtn .btn{width:auto;margin:0;padding:11px 18px}
+.fbtn .ghost{border:1px solid var(--line);background:#fff;border-radius:8px;padding:11px 16px;cursor:pointer;color:var(--ink)}
+.fbtn .ghost:hover{border-color:var(--red);color:var(--red)}
+.fbtn .btn:disabled{opacity:.45;cursor:not-allowed}
+.notice{border-radius:8px;padding:10px 12px;margin-top:14px;font-size:13px}
+.notice.warn{background:var(--warnbg);color:var(--warn)}
+.notice.bad{background:var(--badbg);color:var(--bad)}
+.notice.ok{background:var(--okbg);color:var(--ok)}
+.newbtn{display:inline-flex;align-items:center;gap:6px;background:var(--red);color:#fff !important;border-radius:8px;padding:9px 14px;font-weight:600;text-decoration:none}
+.newbtn:hover{background:var(--red2);text-decoration:none}
+.newbtn.dis{background:#c9c9cf;pointer-events:none}
+.side a.newlink{background:var(--red);color:#fff;margin:12px 14px 6px;border-radius:8px;border-left:0;justify-content:center;font-weight:600}
+.side a.newlink:hover{background:var(--red2)}
+.side a.newlink.on{background:var(--red2);color:#fff;border-left:0}
+@media(max-width:700px){.fgrid{grid-template-columns:1fr}}
+
+.combo{position:relative}
+.combo input{width:100%;height:38px;border:1px solid #d6d6dc;border-radius:8px;padding:0 10px;background:#fff}
+.combo .menu{position:absolute;left:0;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid #d6d6dc;border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,.12);z-index:5;max-height:260px;overflow:auto;display:none}
+.combo .opt{padding:9px 12px;cursor:pointer;border-bottom:1px solid #f1f1f4}
+.combo .opt:hover{background:#fdeeee}
+.combo .opt small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.combo .opt.add{color:var(--red);font-weight:600}
+.combo .none{padding:9px 12px;color:var(--muted)}
+.addbox{margin-top:8px;border:1px dashed var(--red);border-radius:8px;padding:12px;background:#fffafa}
+.addbox .addhead{font-weight:700;color:var(--red);margin-bottom:8px;font-size:13px}
+.addbox .addrow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.addbox input{height:36px;border:1px solid #d6d6dc;border-radius:8px;padding:0 10px;width:100%;background:#fff}
+.addbox .addbtns{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+.addbox .addbtns button{border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:600;border:1px solid var(--line);background:#fff;font-size:13px}
+.addbox .addbtns .save{background:var(--red);color:#fff;border-color:var(--red)}
+.addbox .err{color:var(--bad);font-size:12.5px;margin-top:6px}
+.protoin{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:600}
+.protoin.bad{border-color:var(--bad)!important;background:var(--badbg)}
+@media(max-width:700px){.addbox .addrow{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="seal">ARK</div>
+  <div class="brand">Arkiva Elektronike<small>Protokolli · Dosjet · Dokumentet</small></div>
+  <nav>
+    <a href="#/">Kryefaqja</a>
+    <a href="#/dosjet">Dosjet</a>
+    <a href="#/kerkesat">Kërkesat e hapura</a>
+    <a href="#/gjurmimi">Gjurmimi</a>
+  </nav>
+</header>
+
+<div id="app"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- të dhëna demo ---------- */
+const CASES = [
+  {id:"c1",no:"DS-2026-0001",title:"Kontrata me Nexa Office sh.p.k.",subject:"Furnizim zyre 2027 · rinegocim çmimesh",status:"hapur",loc:"Magazina · Raft K · Kutia 14",opened:"03/11/2026",closeNote:""},
+  {id:"c2",no:"DS-2026-0002",title:"Kërkesë për leje ndërtimi",subject:"Ndërtimi i depos së re, rruga Durrësit",status:"mbyllur",loc:"Zyra 2 · Dollapi B · Raft 3",opened:"21/10/2026",closed:"05/11/2026",closeNote:"U zgjidh me lejen e lëshuar D-2026-0019"},
+  {id:"c3",no:"DS-2026-0003",title:"Pagesa e energjisë · Q3",subject:"Korrespondencë me KESH",status:"hapur",loc:"Zyra 1 · Dollapi A · Raft 2",opened:"30/10/2026"}
+];
+const DOCS = [
+  {id:"d1",case:"c1",dir:"hyrje",kind:"kërkesë",proto:"H-2026-0001",date:"02/11/2026",from:"Nexa Office sh.p.k.",subject:"Kërkesë për rinegocim çmimesh",due:"12/11/2026",pages:3,size:"184 KB",file:"kerkese_nexa.pdf",sha:"2efa861bab1d12c2dd5c98425c7e1fe439126aa05ebc61e109849c80829ee721",ocr:"Të nderuar,\nJu lutemi për rinegocim të çmimeve për furnizimin me materiale zyre për vitin 2027. Kërkojmë përgjigje brenda afatit 12.11.2026."},
+  {id:"d2",replyTo:"d1",case:"c1",dir:"dalje",kind:"përgjigje",proto:"D-2026-0001",date:"04/11/2026",from:"Arkiva · Drejtoria e Financës",subject:"Përgjigje për rinegocimin",due:"",pages:2,size:"120 KB",file:"pergjigje_nexa.pdf",sha:"9a1c44d0e7b2f5a8c31d6e0b72f9a4c1d58e3b07f6a2c9e1d4b8a7f03c52e9d1",ocr:"Të nderuar,\nNë përgjigje të kërkesës H-2026-0001, pranojmë rinegocimin me zbritje 4% për periudhën 2027.\nJu lutemi konfirmoni."},
+  {id:"d3",case:"c1",dir:"hyrje",kind:"kontratë",proto:"H-2026-0002",date:"06/11/2026",from:"Nexa Office sh.p.k.",subject:"Projekt-kontrata e furnizimit 2027",due:"",pages:9,size:"940 KB",file:"kontrata_nexa_2027.pdf",sha:"c3f0a1e9b7d24c6e8a5f1b0d9e3c7a2b4f6e8d1c0a9b7e5f3d2c1b0a9e8f7d6c",ocr:"KONTRATË FURNIZIMI\nndërmjet Arkivës dhe Nexa Office sh.p.k.\nVlefshmëria: 24 muaj\nKushtet e pagesës: 30 ditë."},
+  {id:"d4",case:"c2",dir:"hyrje",kind:"kërkesë",proto:"H-2026-0003",date:"21/10/2026",from:"Ndërtim Adriatik sh.a.",subject:"Kërkesë për leje ndërtimi",due:"30/10/2026",pages:4,size:"310 KB",file:"kerkese_leje.pdf",sha:"5e7d1b9a3c0f2e8d6b4a1c9f7e3d5b2a0c8e6f4d2b1a9c7e5f3d1b0a8c6e4f2d",ocr:"Kërkojmë lejen e ndërtimit për depon e re në rrugën Durrësit."},
+  {id:"d5",replyTo:"d4",case:"c2",dir:"dalje",kind:"përgjigje",proto:"D-2026-0019",date:"05/11/2026",from:"Arkiva · Drejtoria e Planifikimit",subject:"Leja e lëshuar",due:"",pages:1,size:"90 KB",file:"leja_dalje.pdf",sha:"8b2f6d0e1a9c7b5d3f1e0a2c4b6d8f0e2a4c6b8d0f2e4a6c8b0d2f4e6a8c0b2d",ocr:"Leja u lëshua me numër D-2026-0019."},
+  {id:"d6",case:"c3",dir:"hyrje",kind:"dokument",proto:"H-2026-0004",date:"30/10/2026",from:"KESH sh.a.",subject:"Faturat e tremujorit III",due:"",pages:2,size:"150 KB",file:"fatura_kesh.pdf",sha:"4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a4c6e8b0d2f4a6c8e0b2d4f6a8c0e2b4d6f",ocr:"Faturat e energjisë për tremujorin III 2026."}
+];
+const LOG = [
+  {ts:"09/11/2026 10:12",user:"Arta Rama",act:"Dokument i regjistruar",doc:"H-2026-0004",detail:"Faturat e tremujorit III"},
+  {ts:"06/11/2026 14:02",user:"Erjon Hoxha",act:"Dokument i regjistruar",doc:"H-2026-0002",detail:"Projekt-kontrata e furnizimit 2027"},
+  {ts:"05/11/2026 11:30",user:"Arta Rama",act:"Dosja u mbyll",doc:"DS-2026-0002",detail:"U zgjidh me lejen e lëshuar D-2026-0019"},
+  {ts:"04/11/2026 09:15",user:"Erjon Hoxha",act:"Lidhje e shtuar",doc:"D-2026-0001",detail:"pergjigje_per → H-2026-0001"},
+  {ts:"02/11/2026 16:40",user:"Arta Rama",act:"Dokument i regjistruar",doc:"H-2026-0001",detail:"Kërkesë për rinegocim çmimesh"}
+];
+
+/* ---------- ndihmës ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const caseOf = id => CASES.find(c=>c.id===id);
+const docById = id => DOCS.find(d=>d.id===id);
+const docsOf = cid => DOCS.filter(d=>d.case===cid);
+const reqOpen = d => d.kind==="kërkesë" && !DOCS.some(a=>a.kind==="përgjigje" && a.replyTo===d.id);
+const isLate = d => d.due && parseDate(d.due) < new Date(2026,10,9) && reqOpen(d);
+function parseDate(s){const [dd,mm,yy]=s.split("/").map(Number);return new Date(yy,mm-1,dd);}
+const ico = {
+  home:'<svg class="ico" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>',
+  folder:'<svg class="ico" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8z"/></svg>',
+  book:'<svg class="ico" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h12a4 4 0 0 1 4 4v12H8a4 4 0 0 1-4-4z"/></svg>',
+  alert:'<svg class="ico" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 1 21h22zm1 15h-2v2h2zm0-7h-2v5h2z"/></svg>',
+  search:'<svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M15.5 14h-.8l-.3-.3A6.5 6.5 0 1 0 9.5 16a6.5 6.5 0 0 0 4.2-1.6l.3.3v.8l5 5 1.5-1.5zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>',
+  dl:'<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M5 20h14v-2H5zm7-18v12l4-4 1.4 1.4L12 18l-5.4-5.6L8 11l4 4V2z"/></svg>'
+};
+const toast = m => { const t=$("#toast"); t.textContent=m; t.style.display="block"; setTimeout(()=>t.style.display="none",2200); };
+
+/* ---------- shell: kreu + sidebar ---------- */
+function sidebar(active){
+  const open = CASES.filter(c=>c.status==="hapur").length;
+  const closed = CASES.filter(c=>c.status==="mbyllur").length;
+  const reqs = DOCS.filter(d=>d.kind==="kërkesë" && reqOpen(d)).length;
+  const late = DOCS.filter(d=>isLate(d)).length;
+  const hyrje = DOCS.filter(d=>d.dir==="hyrje").length;
+  const dalje = DOCS.filter(d=>d.dir==="dalje").length;
+  const a=(k,label,n,href)=>`<a href="${href}" class="${active===k?"on":""}">${ico.folder}${label}<span class="n">${n}</span></a>`;
+  return `<aside class="side">
+    <div class="sh">Shfleto arkivin</div>
+    <a href="#/regjistro" class="newlink ${active==="reg"?"on":""}">＋ Regjistro dokument</a>
+    <div class="sec">Dosjet</div>
+    ${a("open","Dosje të hapura",open,"#/dosjet?s=hapur")}
+    ${a("closed","Dosje të mbyllura",closed,"#/dosjet?s=mbyllur")}
+    <div class="sec">Korrespondenca</div>
+    ${a("in","Hyrje (protokolli H)",hyrje,"#/dosjet?d=hyrje")}
+    ${a("out","Dalje (protokolli D)",dalje,"#/dosjet?d=dalje")}
+    <div class="sec">Kontrolli</div>
+    <a href="#/kerkesat" class="${active==="req"?"on":""}">${ico.alert}Kërkesa pa përgjigje<span class="n">${reqs}</span></a>
+    <a href="#/kerkesat?vonuar=1" class="${active==="late"?"on":""}">${ico.alert}Afate të kaluara<span class="n">${late}</span></a>
+    <div class="sec">Lidhje</div>
+    <a href="#/gjurmimi" class="${active==="log"?"on":""}">${ico.book}Gjurmimi i ndryshimeve</a>
+  </aside>`;
+}
+function shell(active, crumbs, inner){
+  return `<section class="wrap">${sidebar(active)}<div class="main">
+    <div class="crumbs">${crumbs.map((c,i)=>i<crumbs.length-1?`<a href="${c.h}">${esc(c.t)}</a><span class="sep">›</span>`:`<span>${esc(c.t)}</span>`).join("")}</div>
+    ${inner}</div></section>
+    <div class="footer">Arkiva Elektronike · prototip · të dhënat janë demo</div>`;
+}
+
+/* ---------- faqet ---------- */
+function home(){
+  const reqs = DOCS.filter(d=>d.kind==="kërkesë" && reqOpen(d));
+  $("#app").innerHTML = `
+  <section class="hero">
+    <h1>ARKIVA ELEKTRONIKE</h1>
+    <div class="cols">
+      <div class="col"><h2>Dosjet</h2>
+        <form class="sbox" onsubmit="event.preventDefault();location.hash='#/dosjet?q='+encodeURIComponent(this.q.value)">
+          ${ico.search}<input name="q" placeholder="Kërko dosje, numër, palë…" autocomplete="off"></form></div>
+      <div class="col"><h2>Protokolli</h2>
+        <form class="sbox" onsubmit="event.preventDefault();location.hash='#/dosjet?q='+encodeURIComponent(this.q.value)">
+          ${ico.search}<input name="q" placeholder="Kërko numër protokolli, p.sh. H-2026-0001" autocomplete="off"></form></div>
+    </div>
+    <div class="adv" onclick="location.hash='#/dosjet?q='">${ico.search} Kërkim i avancuar</div>
+  </section>
+  <section class="wrap">${sidebar("home")}<div class="main">
+    <div class="crumbs"><a href="#/">${ico.home}</a><span class="sep">›</span><span>Kryefaqja</span></div>
+    <div class="toolbar"><h2>Kërkesa që presin përgjigje (${reqs.length})</h2><a href="#/kerkesat" class="pill">Shiko të gjitha →</a><a href="#/regjistro" class="newbtn">＋ Regjistro dokument</a></div>
+    ${reqs.length? `<table class="tbl"><thead><tr><th>Protokolli</th><th>Lënda</th><th>Nga</th><th>Afati</th><th>Statusi</th></tr></thead><tbody>
+    ${reqs.map(d=>`<tr><td><a href="#/dokument/${d.id}" class="t">${d.proto}</a></td><td>${esc(d.subject)}<div class="sub">${esc(caseOf(d.case).no)}</div></td>
+      <td>${esc(d.from)}</td><td>${d.due||"—"}</td>
+      <td>${isLate(d)?'<span class="tag late">Me vonesë</span>':'<span class="tag open">Në pritje</span>'}</td></tr>`).join("")}
+    </tbody></table>` : `<div class="empty">Asnjë kërkesë pa përgjigje.</div>`}
+    <div class="toolbar" style="border-top:1px solid var(--line)"><h2>Dosjet e fundit</h2></div>
+    ${caseTable(CASES)}
+  </div></section>
+  <div class="footer">Arkiva Elektronike · prototip · të dhënat janë demo</div>`;
+}
+
+function caseTable(list){
+  if(!list.length) return `<div class="empty">Asnjë dosje nuk përputhet me filtrin.</div>`;
+  return `<table class="tbl"><thead><tr><th>Dosja</th><th>Vendndodhja fizike</th><th>Dokumente</th><th>Statusi</th></tr></thead><tbody>
+  ${list.map(c=>`<tr><td><a href="#/dosje/${c.id}" class="t">${esc(c.title)}</a><div class="sub">${c.no} · ${esc(c.subject)}</div></td>
+    <td class="sub" style="font-size:13px">${esc(c.loc)}</td><td>${docsOf(c.id).length}</td>
+    <td><span class="tag ${c.status==="hapur"?"open":"closed"}">${c.status==="hapur"?"E hapur":"E mbyllur"}</span></td></tr>`).join("")}
+  </tbody></table>`;
+}
+
+function casesPage(params){
+  const q=(params.get("q")||"").toLowerCase(), s=params.get("s"), d=params.get("d");
+  let list = CASES.filter(c=>(!s||c.status===s)&&(!q||(c.title+c.no+c.subject).toLowerCase().includes(q)||docsOf(c.id).some(x=>(x.proto+x.subject+x.from).toLowerCase().includes(q))));
+  if(d) list = list.filter(c=>docsOf(c.id).some(x=>x.dir===d));
+  const label = s?(s==="hapur"?"Dosje të hapura":"Dosje të mbyllura"):d?(d==="hyrje"?"Hyrje (H)":"Dalje (D)"):q?`Kërkimi: «${q}»`:"Të gjitha dosjet";
+  shellRender(s==="hapur"?"open":s==="mbyllur"?"closed":d==="hyrje"?"in":d==="dalje"?"out":"all",
+    [{t:"Arkiva",h:"#/"},{t:"Dosjet"}],
+    `<div class="toolbar"><h2>${label} (${list.length})</h2>
+      <a href="#/dosjet" class="pill ${!s&&!d?"on":""}">Të gjitha</a>
+      <a href="#/dosjet?s=hapur" class="pill ${s==="hapur"?"on":""}">Të hapura</a>
+      <a href="#/dosjet?s=mbyllur" class="pill ${s==="mbyllur"?"on":""}">Të mbyllura</a></div>
+     ${caseTable(list)}`);
+}
+
+function casePage(id){
+  const c = caseOf(id); if(!c) return notFound();
+  const ds = docsOf(id);
+  const reqs = ds.filter(d=>d.kind==="kërkesë");
+  const steps = reqs.map(r=>{ const a=DOCS.find(x=>x.kind==="përgjigje"&&x.replyTo===r.id);
+    return {r,a}; });
+  shellRender("open",[{t:"Arkiva",h:"#/"},{t:"Dosjet",h:"#/dosjet"},{t:c.no}],
+  `<div class="toolbar"><h2 style="font-size:22px">${esc(c.title)}</h2>
+     <span class="tag ${c.status==="hapur"?"open":"closed"}">${c.status==="hapur"?"E hapur":"E mbyllur"}</span>
+     <span style="flex:1"></span>
+     ${c.status==="hapur"?`<a href="#/regjistro?case=${c.id}" class="newbtn">＋ Regjistro dokument</a>`:`<span class="newbtn dis" title="Dosja është e mbyllur">＋ Regjistro dokument</span>`}</div>
+   <div style="padding:0 22px 22px">
+    <dl class="kv" style="margin-top:16px">
+      <dt>Numri i dosjes</dt><dd>${c.no}</dd>
+      <dt>Lënda</dt><dd>${esc(c.subject)}</dd>
+      <dt>Vendndodhja fizike</dt><dd>${esc(c.loc)}</dd>
+      <dt>Hapur më</dt><dd>${c.opened}</dd>
+      ${c.status==="mbyllur"?`<dt>Mbyllur më</dt><dd>${c.closed}</dd><dt>Shënimi</dt><dd>${esc(c.closeNote)}</dd>`:""}
+    </dl>
+    <div class="box"><div class="hl">Jeta e dosjes</div>
+      <div class="stepper">
+        <div class="step"><div class="c">✓</div><div>Dosja u hap<small>${c.opened}</small></div></div>
+        ${steps.map(({r,a})=>`<div class="step"><div class="c ${a?"":"p"}">${a?"✓":"!"}</div>
+          <div><a href="#/dokument/${r.id}">${r.proto}</a> · kërkesë nga ${esc(r.from)}
+          <small>${a?`Përgjigjur me ${a.proto} më ${a.date}`:`Pa përgjigje${r.due?` · afati ${r.due}`:""}`}</small></div></div>`).join("")}
+        ${c.status==="mbyllur"?`<div class="step"><div class="c">✓</div><div>Dosja u mbyll<small>${c.closed} · ${esc(c.closeNote)}</small></div></div>`
+          :`<div class="step"><div class="c o">○</div><div>Mbyllja<small>Pas përgjigjes së të gjitha kërkesave dhe shënimit të mbylljes</small></div></div>`}
+      </div></div>
+    </div>
+    <div class="toolbar" style="border-top:1px solid var(--line)"><h2>Dokumentet (${ds.length})</h2></div>
+    ${docsTable(ds)}`);
+}
+
+function docsTable(ds){
+  if(!ds.length) return `<div class="empty">Nuk ka dokumente.</div>`;
+  return `<table class="tbl"><thead><tr><th>Protokolli</th><th>Lloji</th><th>Lënda</th><th>Data</th><th>Afati</th></tr></thead><tbody>
+  ${ds.map(d=>`<tr><td><a href="#/dokument/${d.id}" class="t">${d.proto}</a></td>
+    <td><span class="tag ${d.dir==="hyrje"?"in":"out"}">${d.dir==="hyrje"?"Hyrje":"Dalje"}</span> <span class="sub">${d.kind}</span></td>
+    <td>${esc(d.subject)}<div class="sub">${esc(d.from)}</div></td><td>${d.date}</td>
+    <td>${d.due?(isLate(d)?`<span class="tag late">${d.due}</span>`:d.due):"—"}</td></tr>`).join("")}</tbody></table>`;
+}
+
+function requestsPage(params){
+  const onlyLate = params.get("vonuar")==="1";
+  const reqs = DOCS.filter(d=>d.kind==="kërkesë" && reqOpen(d) && (!onlyLate||isLate(d)));
+  shellRender(onlyLate?"late":"req",[{t:"Arkiva",h:"#/"},{t:onlyLate?"Afate të kaluara":"Kërkesa pa përgjigje"}],
+    `<div class="toolbar"><h2>${onlyLate?"Afate të kaluara":"Kërkesa pa përgjigje"} (${reqs.length})</h2>
+      <a href="#/kerkesat" class="pill ${!onlyLate?"on":""}">Të gjitha</a><a href="#/kerkesat?vonuar=1" class="pill ${onlyLate?"on":""}">Me vonesë</a></div>
+     ${reqs.length?`<table class="tbl"><thead><tr><th>Protokolli</th><th>Dosja</th><th>Nga</th><th>Afati</th><th>Statusi</th></tr></thead><tbody>
+     ${reqs.map(d=>`<tr><td><a href="#/dokument/${d.id}" class="t">${d.proto}</a><div class="sub">${esc(d.subject)}</div></td>
+       <td><a href="#/dosje/${d.case}">${caseOf(d.case).no}</a></td><td>${esc(d.from)}</td><td>${d.due||"—"}</td>
+       <td>${isLate(d)?'<span class="tag late">Me vonesë</span>':'<span class="tag open">Në pritje</span>'}</td></tr>`).join("")}
+     </tbody></table>`:`<div class="empty">Asnjë rast.</div>`}`);
+}
+
+function logPage(){
+  shellRender("log",[{t:"Arkiva",h:"#/"},{t:"Gjurmimi"}],
+  `<div class="toolbar"><h2>Gjurmimi i ndryshimeve</h2></div>
+   <table class="tbl"><thead><tr><th>Data</th><th>Përdoruesi</th><th>Veprimi</th><th>Dokumenti / dosja</th><th>Detaje</th></tr></thead><tbody>
+   ${LOG.map(l=>`<tr><td class="sub" style="white-space:nowrap">${l.ts}</td><td>${esc(l.user)}</td><td>${esc(l.act)}</td><td class="t">${esc(l.doc)}</td><td class="sub" style="font-size:13px">${esc(l.detail)}</td></tr>`).join("")}
+   </tbody></table>`);
+}
+
+function docPage(id){
+  const d = docById(id); if(!d) return notFound();
+  const c = caseOf(d.case);
+  const rel = [];
+  if(d.kind==="përgjigje" && d.replyTo) rel.push({g:1,t:docById(d.replyTo)});
+  DOCS.filter(x=>x.kind==="përgjigje" && x.replyTo===d.id).forEach(x=>rel.push({g:1,t:x}));
+  DOCS.filter(x=>x.case===d.case && x.id!==d.id && !rel.some(r=>r.t&&r.t.id===x.id)).forEach(x=>rel.push({g:0,t:x}));
+  const late = isLate(d);
+  shellRender("",[{t:"Arkiva",h:"#/"},{t:"Dosjet",h:"#/dosjet"},{t:c.no,h:"#/dosje/"+c.id},{t:d.proto}],
+  `<div class="docwrap">
+    <div class="viewer">
+      <div class="vbar"><span>${d.pages} faqe</span><span class="sp"></span>
+        <button onclick="zoom(-10)">−</button><span id="zv">100%</span><button onclick="zoom(10)">+</button></div>
+      <div id="paperwrap"><div class="paper" id="paper" style="zoom:1">
+        <div class="hd"><b>${d.dir==="hyrje"?"REGJISTRI I HYRJES":"REGJISTRI I DALJES"}</b><br><small>Nr. protokolli: ${d.proto} · ${d.date}</small></div>
+        <div class="meta"><span>Nga/për: ${esc(d.from)}</span><span>Lloji: ${d.kind}</span></div>
+        <p><b>Lënda:</b> ${esc(d.subject)}</p>
+        ${esc(d.ocr).split("\n").map(p=>`<p>${p}</p>`).join("")}
+        <div class="ln"></div><div class="ln" style="width:70%"></div><div class="ln" style="width:85%"></div>
+        <div style="margin-top:30px;font-size:11px;color:#777">Faqja 1 nga ${d.pages} · ${esc(d.file)}</div>
+      </div></div>
+    </div>
+    <div class="info">
+      <h1>${esc(d.subject)}</h1>
+      <dl class="kv">
+        <dt>Protokolli</dt><dd>${d.proto}</dd>
+        <dt>Lloji</dt><dd>${d.dir==="hyrje"?"Hyrje":"Dalje"} · ${d.kind}</dd>
+        <dt>Data</dt><dd>${d.date}</dd>
+        <dt>Nga / për</dt><dd>${esc(d.from)}</dd>
+        <dt>Dosja</dt><dd><a href="#/dosje/${c.id}">${c.no} · ${esc(c.title)}</a></dd>
+        <dt>Vendndodhja</dt><dd>${esc(c.loc)}</dd>
+        ${d.due?`<dt>Afati</dt><dd>${late?'<span class="tag late">'+d.due+' · e kaluar</span>':d.due}</dd>`:""}
+        <dt>Skedari</dt><dd>${esc(d.file)} · ${d.size}</dd>
+      </dl>
+      <button class="btn red" onclick="toast('Shkarkimi: prototip')">${ico.dl} Shkarko PDF (${d.size})</button>
+      <button class="btn line" onclick="toast('Hapja: prototip')">${ico.dl} Hap në skedë të re</button>
+      <div class="hl" style="margin-top:16px">SHA-256 (për verifikim integriteti)</div>
+      <div class="hash">${d.sha}</div>
+      ${d.kind==="kërkesë" && reqOpen(d) ? `<div class="box ${late?"late":""}"><b>Kërkesë pa përgjigje</b><div class="sub" style="margin-top:4px">${late?"Afati ka kaluar.":"Lidhni përgjigjen për ta mbyllur kërkesën."}</div>
+        <button class="btn line" style="margin-top:10px;margin-bottom:0" onclick="toast('Lidhja e përgjigjes: prototip')">Lidh përgjigjen</button></div>`:""}
+      <div class="hl">Dokumente të lidhura në dosje (${rel.length})</div>
+      <ul class="rel">${rel.length? rel.map(r=>`<li><span class="dot ${r.g?"g":"o"}"></span><div><a href="#/dokument/${r.t.id}">${r.t.proto}</a>
+        <div class="sm">${esc(r.t.subject)}</div><div class="sm">${r.t.dir==="hyrje"?"Hyrje":"Dalje"} · ${r.t.date}</div></div></li>`).join("") : `<li class="sm">Asnjë lidhje.</li>`}</ul>
+      ${d.kind==="përgjigje" && d.replyTo?"":""}
+    </div>
+  </div>`);
+}
+let zl=100; function zoom(d){ zl=Math.min(160,Math.max(60,zl+d)); $("#paper").style.zoom=zl/100; $("#zv").textContent=zl+"%"; }
+
+function notFound(){ shellRender("",[{t:"Arkiva",h:"#/"},{t:"Nuk u gjet"}],`<div class="empty">Faqja nuk u gjet.</div>`); }
+
+function shellRender(active,crumbs,inner){ $("#app").innerHTML = shell(active,crumbs,inner); }
+
+
+/* ---------- regjistrimi i dokumentit ---------- */
+const KINDS = ["shkresë","kërkesë","përgjigje","kontratë","fletë","dokument"];
+const TODAY = () => { const x=new Date(); const p=n=>String(n).padStart(2,"0"); return `${p(x.getDate())}/${p(x.getMonth()+1)}/${x.getFullYear()}`; };
+const TODAY_ISO = () => { const x=new Date(); const p=n=>String(n).padStart(2,"0"); return `${x.getFullYear()}-${p(x.getMonth()+1)}-${p(x.getDate())}`; };
+const YEAR = () => new Date().getFullYear();
+const NOW_HM = () => new Date().toTimeString().slice(0,5);
+function nextNumber(prefix){
+  const pre = prefix+"-"+YEAR()+"-";
+  const pool = [...DOCS.map(d=>d.proto), ...CASES.map(c=>c.no)];
+  const nums = pool.filter(x=>x && x.startsWith(pre)).map(x=>+x.slice(pre.length)).filter(n=>!isNaN(n));
+  return pre + String((nums.length?Math.max(...nums):0)+1).padStart(4,"0");
+}
+const nextProto = dir => nextNumber(dir==="hyrje"?"H":"D");
+async function fileSha(file){
+  if(!(crypto && crypto.subtle)) return "";
+  const h = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  return [...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+const humanName = n => { const t=n.replace(/\.[^.]+$/,"").replace(/[_-]+/g," ").trim(); return t.charAt(0).toUpperCase()+t.slice(1); };
+
+/* Kërkim me shkrim (jo dropdown). Nëse s'gjendet, shtohet aty. */
+class Combo{
+  constructor(id,o){
+    this.id=id; this.o=o;
+    this.in=document.getElementById(id+"-in"); this.val=document.getElementById(id+"-val");
+    this.menu=document.getElementById(id+"-menu"); this.add=document.getElementById(id+"-add");
+    this.in.addEventListener("focus",()=>this.open());
+    this.in.addEventListener("input",()=>{ this.val.value=""; this.open(); this.o.onPick&&this.o.onPick(""); });
+    this.in.addEventListener("blur",()=>setTimeout(()=>{this.menu.style.display="none";},150));
+    this.in.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); const f=this.filtered()[0]; if(f) this.pick(f); } });
+  }
+  items(){ return this.o.getItems(); }
+  refresh(){ if(this.val.value && !this.items().some(i=>i.value===this.val.value)){ this.val.value=""; this.in.value=""; } }
+  filtered(){
+    const q=this.in.value.trim().toLowerCase();
+    return this.items().filter(i=>!q || (i.label+" "+(i.sub||"")).toLowerCase().includes(q)).slice(0,8);
+  }
+  open(){
+    const items=this.filtered(), q=this.in.value.trim();
+    let html = items.map((i,k)=>`<div class="opt" data-k="${k}"><b>${esc(i.label)}</b>${i.sub?`<small>${esc(i.sub)}</small>`:""}</div>`).join("");
+    if(!items.length) html += `<div class="none">Asnjë rezultat${q?` për «${esc(q)}»`:""}</div>`;
+    if(this.o.onAdd) html += `<div class="opt add" data-add="1">＋ Shto ${esc(this.o.addText||"të re")}${q?` «${esc(q)}»`:""}</div>`;
+    this.menu.innerHTML = html; this.menu.style.display="block";
+    this.menu.querySelectorAll(".opt[data-k]").forEach(el=>el.onmousedown=e=>{ e.preventDefault(); this.pick(items[+el.dataset.k]); });
+    const a=this.menu.querySelector("[data-add]");
+    if(a) a.onmousedown=e=>{ e.preventDefault(); this.menu.style.display="none"; this.showAdd(q); };
+  }
+  pick(it){ this.val.value=it.value; this.in.value=it.label; this.menu.style.display="none"; this.add.style.display="none"; this.o.onPick&&this.o.onPick(it.value); }
+  set(value){ const it=this.items().find(i=>i.value===value); this.val.value=it?value:""; this.in.value=it?it.label:""; }
+  showAdd(q){
+    this.add.style.display="block";
+    this.add.innerHTML = `<div class="addhead">${esc(this.o.addText||"të re")}</div>${this.o.addForm(q)}
+      <div class="err"></div>
+      <div class="addbtns"><button type="button" class="cancel">Anulo</button><button type="button" class="save">Ruaj dhe zgjidhe</button></div>`;
+    this.add.querySelector(".cancel").onclick=()=>{ this.add.style.display="none"; };
+    this.add.querySelector(".save").onclick=()=>{
+      const r = this.o.onSave(this.add);
+      if(typeof r==="string"){ this.add.querySelector(".err").textContent=r; return; }
+      this.add.style.display="none";
+      this.val.value=r.value; this.in.value=r.label;
+      this.o.onPick&&this.o.onPick(r.value);
+      toast(`U shtua: ${r.label}`);
+    };
+    const first=this.add.querySelector("input"); if(first) first.focus();
+  }
+}
+
+let RG_CASE=null, RG_KIND=null;
+function registerPage(params){
+  const cid = params.get("case") || (CASES.find(c=>c.status==="hapur")||CASES[0]).id;
+  const dir = params.get("dir")==="dalje" ? "dalje" : "hyrje";
+  shellRender("reg",[{t:"Arkiva",h:"#/"},{t:"Regjistro dokument"}],`
+  <div class="toolbar"><h2>Regjistro dokument në protokoll</h2></div>
+  <form id="regf" style="padding:0 22px 22px" novalidate>
+    <div class="fgrid">
+      <div class="fld full"><label>Drejtimi</label>
+        <div class="radios">
+          <label><input type="radio" name="dir" value="hyrje" ${dir==="hyrje"?"checked":""}> Hyrje (H)</label>
+          <label><input type="radio" name="dir" value="dalje" ${dir==="dalje"?"checked":""}> Dalje (D)</label>
+        </div></div>
+      <div class="fld"><label>Numri i protokollit</label>
+        <input class="protoin" name="proto" id="fProto" value="${nextProto(dir)}" autocomplete="off">
+        <div class="hint" id="protoHint">Mund ta ndryshoni. Duhet të jetë unik.</div></div>
+      <div class="fld"><label>Data e dokumentit</label><input type="date" name="date" value="${TODAY_ISO()}"></div>
+      <div class="fld full"><label>Dosja</label>
+        <div class="combo" id="cs-wrap"><input id="cs-in" placeholder="Shkruani emrin ose numrin e dosjes…" autocomplete="off"><input type="hidden" id="cs-val"><div class="menu" id="cs-menu"></div></div>
+        <div class="addbox" id="cs-add" style="display:none"></div></div>
+      <div class="fld full"><label>Lloji i dokumentit</label>
+        <div class="combo" id="kd-wrap"><input id="kd-in" placeholder="Shkruani llojin…" autocomplete="off"><input type="hidden" id="kd-val"><div class="menu" id="kd-menu"></div></div>
+        <div class="addbox" id="kd-add" style="display:none"></div></div>
+      <div class="fld full"><label>Skedari (PDF ose foto)</label>
+        <input type="file" name="file" id="fFile" accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff,image/*,application/pdf">
+        <div class="hint" id="fileHint">Skedari llogaritet me SHA-256 për të kontrolluar dublikatet.</div>
+        <div id="dupWarn"></div></div>
+      <div class="fld"><label>Nga / për kë</label><input name="from" placeholder="p.sh. Nexa Office sh.p.k."></div>
+      <div class="fld"><label>Lënda</label><input name="subject" maxlength="200" placeholder="Përshkrim i shkurtër i dokumentit"></div>
+      <div class="fld" id="dueWrap" style="display:none"><label>Afati i përgjigjes</label><input type="date" name="due">
+        <div class="hint">Kërkesa duhet të ketë afat.</div></div>
+      <div class="fld full" id="replyWrap" style="display:none"><label>Përgjigje ndaj kërkesës së hapur</label>
+        <div class="combo" id="rp-wrap"><input id="rp-in" placeholder="Kërko sipas protokollit ose lëndës…" autocomplete="off"><input type="hidden" id="rp-val"><div class="menu" id="rp-menu"></div></div>
+        <div class="hint">Vetëm kërkesat e hapura në dosjen e zgjedhur.</div></div>
+    </div>
+    <div id="formNotice"></div>
+    <div class="fbtn">
+      <button type="button" class="ghost" onclick="ocrDemo()">Plotëso nga OCR (demo)</button>
+      <a href="#/dosje/${cid}" class="ghost" style="text-decoration:none">Anulo</a>
+      <button type="submit" class="btn red" id="saveBtn">Ruaj dhe protokollo</button>
+    </div>
+  </form>`);
+
+  const f = document.getElementById("regf");
+  const sync = () => {
+    const k = document.getElementById("kd-val").value;
+    document.getElementById("dueWrap").style.display = k==="kërkesë" ? "" : "none";
+    document.getElementById("replyWrap").style.display = k==="përgjigje" ? "" : "none";
+    const cid2 = document.getElementById("cs-val").value, cs = caseOf(cid2);
+    document.getElementById("formNotice").innerHTML = cs && cs.status==="mbyllur"
+      ? `<div class="notice bad">Dosja «${esc(cs.no)}» është e mbyllur. Nuk mund të regjistrohen dokumente. Rihapeni dosjen më parë (vetëm drejtuesi).</div>` : "";
+    document.getElementById("saveBtn").disabled = !!(cs && cs.status==="mbyllur");
+    RG_REPLY.refresh();
+  };
+
+  const RG_CASE_C = new Combo("cs",{
+    getItems:()=>CASES.map(c=>({value:c.id,label:`${c.no} · ${c.title}`,sub:(c.status==="mbyllur"?"E mbyllur · ":"E hapur · ")+(c.loc||"pa vendndodhje")})),
+    onAdd:true, addText:"dosje",
+    addForm:q=>`<div class="addrow"><input data-f="title" value="${esc(q)}" placeholder="Titulli i dosjes"><input data-f="loc" placeholder="Vendndodhja fizike (opsionale)"></div>`,
+    onSave:box=>{
+      const title=box.querySelector('[data-f="title"]').value.trim();
+      if(!title) return "Shkruani titullin e dosjes.";
+      const loc=box.querySelector('[data-f="loc"]').value.trim();
+      const c={id:"c"+Date.now(),no:nextNumber("DS"),title,subject:"",loc,status:"hapur",opened:TODAY()};
+      CASES.push(c);
+      LOG.unshift({ts:`${TODAY()} ${NOW_HM()}`,user:"Arta Rama",act:"Dosje e hapur",doc:c.no,detail:title});
+      return {value:c.id,label:`${c.no} · ${c.title}`};
+    },
+    onPick:()=>sync()
+  });
+  RG_CASE = RG_CASE_C;
+
+  RG_KIND = new Combo("kd",{
+    getItems:()=>KINDS.map(k=>({value:k,label:k})),
+    onAdd:true, addText:"lloj dokumenti",
+    addForm:q=>`<div class="addrow"><input data-f="name" value="${esc(q)}" placeholder="Emri i llojit"><input disabled value="Ruhet në listë"></div>`,
+    onSave:box=>{
+      const name=box.querySelector('[data-f="name"]').value.trim().toLowerCase();
+      if(!name) return "Shkruani emrin e llojit.";
+      if(!KINDS.includes(name)) KINDS.push(name);
+      return {value:name,label:name};
+    },
+    onPick:()=>sync()
+  });
+  RG_REPLY = new Combo("rp",{
+    getItems:()=>DOCS.filter(d=>d.case===RG_CASE.val.value && d.kind==="kërkesë" && reqOpen(d))
+      .map(d=>({value:d.id,label:`${d.proto} · ${d.subject}`,sub:"Kërkesë e hapur"})),
+    onPick:()=>{}
+  });
+
+  RG_CASE.set(cid);
+  RG_KIND.set("shkresë");
+  sync();
+
+  document.querySelectorAll('input[name="dir"]').forEach(r=>r.addEventListener("change",()=>{
+    const p=document.getElementById("fProto");
+    if(!p.dataset.touched) p.value = nextProto(r.value);
+    checkProto();
+  }));
+  const pIn=document.getElementById("fProto");
+  pIn.addEventListener("input",()=>{ pIn.dataset.touched="1"; checkProto(); });
+
+  f.file.addEventListener("change", async e => {
+    const file = e.target.files[0];
+    if(!file){ f.dataset.sha=""; document.getElementById("dupWarn").innerHTML=""; return; }
+    document.getElementById("fileHint").textContent = "Po llogaritet SHA-256…";
+    const sha = await fileSha(file);
+    f.dataset.sha = sha;
+    document.getElementById("fileHint").textContent = `${file.name} · ${Math.max(1,Math.round(file.size/1024))} KB`;
+    const dup = sha && DOCS.find(d=>d.sha===sha);
+    document.getElementById("dupWarn").innerHTML = dup ? `<div class="notice warn">Ky skedar është identik me <a href="#/dokument/${dup.id}">${dup.proto}</a>. Mund ta regjistroni përsëri, por do të shënohet si dublikat.</div>` : "";
+  });
+  f.addEventListener("submit", e => { e.preventDefault(); saveReg(f); });
+}
+let RG_REPLY=null;
+
+function checkProto(){
+  const v=document.getElementById("fProto").value.trim();
+  const hint=document.getElementById("protoHint"), inp=document.getElementById("fProto");
+  const taken = DOCS.some(d=>d.proto===v);
+  inp.classList.toggle("bad", !!taken || !v);
+  hint.textContent = !v ? "Numri i protokollit është i detyrueshëm." : taken ? "Ky numër është tashmë i përdorur. Zgjidhni një tjetër." : "Mund ta ndryshoni. Duhet të jetë unik.";
+  hint.style.color = (taken||!v) ? "var(--bad)" : "";
+  return !taken && !!v;
+}
+
+function ocrDemo(){
+  const f = document.getElementById("regf"); const file = f.file.files[0];
+  if(!file){ toast("Zgjidhni fillimisht një skedar"); return; }
+  f.subject.value = humanName(file.name);
+  toast("OCR (demo): lënda u plotësua nga emri i skedarit.");
+}
+
+function saveReg(f){
+  const err = t => { document.getElementById("formNotice").innerHTML = `<div class="notice bad">${t}</div>`; };
+  const cs = caseOf(document.getElementById("cs-val").value);
+  const kind = document.getElementById("kd-val").value;
+  const proto = document.getElementById("fProto").value.trim();
+  if(!cs) return err("Zgjidhni dosjen (shkruani emrin dhe zgjidhni nga lista, ose shtoni dosje të re).");
+  if(cs.status==="mbyllur") return err("Dosja është e mbyllur.");
+  if(!proto) return err("Shkruani numrin e protokollit.");
+  if(DOCS.some(d=>d.proto===proto)) return err(`Numri i protokollit «${esc(proto)}» është tashmë i përdorur.`);
+  if(!kind) return err("Zgjidhni ose shtoni llojin e dokumentit.");
+  if(!f.from.value.trim()) return err("Plotësoni fushën «Nga / për kë».");
+  if(!f.subject.value.trim()) return err("Plotësoni lëndën.");
+  if(kind==="kërkesë" && !f.due.value) return err("Kërkesa duhet të ketë afat përgjigjeje.");
+  const replyTo = document.getElementById("rp-val").value;
+  if(kind==="përgjigje" && !replyTo) return err("Zgjidhni kërkesën e hapur ku i përgjigjeni, ose ndryshoni llojin.");
+  if(f.dataset.sha && DOCS.some(d=>d.sha===f.dataset.sha) && !confirm("Ky skedar ekziston tashmë në arkiv. Të regjistrohet përsëri si dublikat?")) return;
+
+  const dir = f.dir.value;
+  const [yy,mm,dd] = f.date.value.split("-");
+  const id = "d"+Date.now();
+  const file = f.file.files[0];
+  const doc = {
+    id, case: cs.id, dir, kind, proto,
+    date: `${dd}/${mm}/${yy}`, from: f.from.value.trim(), subject: f.subject.value.trim(),
+    due: kind==="kërkesë" ? f.due.value.split("-").reverse().join("/") : "",
+    pages: 1,
+    size: file ? `${Math.max(1,Math.round(file.size/1024))} KB` : "—",
+    file: file ? file.name : "—",
+    sha: f.dataset.sha || "—",
+    ocr: ""
+  };
+  if(kind==="përgjigje") doc.replyTo = replyTo;
+  DOCS.push(doc);
+  LOG.unshift({ts:`${TODAY()} ${NOW_HM()}`,user:"Arta Rama",act:"Dokument i regjistruar",doc:proto,detail:`${doc.subject} · ${cs.no}`});
+  toast(`U regjistrua me protokollin ${proto}`);
+  location.hash = "#/dokument/"+id;
+}
+
+/* ---------- router ---------- */
+function route(){
+  const h = location.hash||"#/";
+  const [path,qs] = h.split("?"); const params = new URLSearchParams(qs||"");
+  window.scrollTo(0,0);
+  if(path.startsWith("#/dosje/")) return casePage(path.split("/")[2]);
+  if(path.startsWith("#/dokument/")) return docPage(path.split("/")[2]);
+  if(path.startsWith("#/dosjet")) return casesPage(params);
+  if(path.startsWith("#/kerkesat")) return requestsPage(params);
+  if(path.startsWith("#/gjurmimi")) return logPage();
+  if(path.startsWith("#/regjistro")) return registerPage(params);
+  return home();
+}
+window.addEventListener("hashchange",route);
+if(!location.hash) location.hash="#/";
+route();
+</script>
+</body>
+</html>
