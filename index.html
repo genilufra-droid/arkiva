@@ -386,7 +386,7 @@ function renderAuth(mode, msg){
         <button class="btn red" type="submit">Dërgo linkun e rikthimit</button>
       </form>
       <div class="authlinks"><a href="javascript:void 0" onclick="renderAuth('in')">← Kthehu te hyrja</a></div>
-      <p class="authnote">Kujdes: dërguesi i email-eve ka limit ~2 mesazhe/orë.</p>
+      <p class="authnote">Nëse s'e merr email-in brenda 2–3 minutash, kontrollo edhe dosjen Spam.</p>
     </div></div>`;
   }else if(mode==="newpass"){
     app.innerHTML = `<div class="authbg"><div class="authcard">
@@ -399,6 +399,8 @@ function renderAuth(mode, msg){
         <label>Përsërit fjalëkalimin</label><input name="p2" type="password" required autocomplete="new-password">
         <button class="btn red" type="submit">Ruaj fjalëkalimin</button>
       </form>
+      <div class="whoami" style="margin-top:16px"><span class="tag in">${esc(S.session?.user?.email||"")}</span></div>
+      <div class="authlinks"><a href="javascript:void 0" onclick="skipNewPass()">Hyr në arkivë pa e ndryshuar fjalëkalimin →</a></div>
     </div></div>`;
   }else if(mode==="pending"){
     app.innerHTML = `<div class="authbg"><div class="authcard">
@@ -442,14 +444,15 @@ async function doNewPass(e){
   const {error} = await sb.auth.updateUser({password:f.p1.value});
   if(error) return renderAuth("newpass",{t:authErrText(error.message)});
   toast("Fjalëkalimi u ruajt!");
-  S.enteredFor=null; await maybeEnter();
+  S.pendingRecovery=false; S.enteredFor=null; await maybeEnter();
 }
+function skipNewPass(){ S.pendingRecovery=false; S.enteredFor=null; maybeEnter(); }
 
 /* ---------- nisja & roja e sesionit ---------- */
 async function maybeEnter(){
   if(!S.session){ renderAuth("in"); return; }
   if(S.enteredFor===S.session.user.id) return;
-  if(S.pendingRecovery){ S.pendingRecovery=false; renderAuth("newpass"); return; }   /* link rikthimi i klikuar */
+  if(S.pendingRecovery){ renderAuth("newpass"); return; }   /* linku i rikthimit klikuar — mbetet këtu deri të ruhet fjalëkalimi */
   const {data:prof,error} = await sb.from("profiles").select("*").eq("id",S.session.user.id).maybeSingle();
   if(error){
     if(/row-level security|permission/i.test(error.message)){ renderAuth("pending"); return; }
@@ -470,8 +473,8 @@ function cleanUrl(){
 async function boot(){
   cleanUrl();
   sb.auth.onAuthStateChange((ev,sess)=>{
-    if(ev==="PASSWORD_RECOVERY"){ S.session=sess; renderAuth("newpass"); return; }
-    if(ev==="SIGNED_OUT"){ S.session=null; S.profile=null; S.enteredFor=null; liveStop(); updateUserbox(); renderAuth("in"); return; }
+    if(ev==="PASSWORD_RECOVERY"){ S.session=sess; S.pendingRecovery=true; history.replaceState(null,"",location.pathname+"#/"); renderAuth("newpass"); return; }
+    if(ev==="SIGNED_OUT"){ S.session=null; S.profile=null; S.enteredFor=null; S.pendingRecovery=false; liveStop(); updateUserbox(); renderAuth("in"); return; }
     if(sess && S.session?.user?.id!==sess.user.id){ S.session=sess; S.enteredFor=null; }
     else if(sess){ S.session=sess; }
     if(sess) maybeEnter();
