@@ -222,7 +222,8 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const caseOf  = id => S.data.cases.find(c=>c.id===id);
 const docById = id => S.data.docs.find(d=>d.id===id);
-const docsOf  = cid => S.data.docs.filter(d=>d.case===cid);
+const docsOf  = cid => S.data.docs.filter(d=>d.case===cid && !d.deleted);
+const docsOfAll = cid => S.data.docs.filter(d=>d.case===cid);
 const REPLY_TO  = {};   /* replyDocId -> requestId  */
 const REPLY_DOC = {};   /* requestId  -> replyDocId */
 const reqOpen = d => d.kind==="kërkesë" && !REPLY_DOC[d.id];
@@ -240,6 +241,7 @@ const ico = {
   book:'<svg class="ico" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h12a4 4 0 0 1 4 4v12H8a4 4 0 0 1-4-4z"/></svg>',
   alert:'<svg class="ico" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 1 21h22zm1 15h-2v2h2zm0-7h-2v5h2z"/></svg>',
   users:'<svg class="ico" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3zm-8 0a3 3 0 1 0-3-3 3 3 0 0 0 3 3zm0 2c-2.3 0-7 1.2-7 3.5V19h14v-2.5C15 14.2 10.3 13 8 13zm8 0c-.3 0-.6 0-1 .1a4.1 4.1 0 0 1 2 3.4V19h6v-2.5c0-2.3-4.7-3.5-7-3.5z"/></svg>',
+  dlb:'<svg class="ico" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>',
   search:'<svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M15.5 14h-.8l-.3-.3A6.5 6.5 0 1 0 9.5 16a6.5 6.5 0 0 0 4.2-1.6l.3.3v.8l5 5 1.5-1.5zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>',
   dl:'<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M5 20h14v-2H5zm7-18v12l4-4 1.4 1.4L12 18l-5.4-5.6L8 11l4 4V2z"/></svg>'
 };
@@ -268,7 +270,8 @@ function mapCase(r){ return {
 function mapDoc(r){ return {
   id:r.id, case:r.case_id, dir:r.direction||"hyrje", kind:r.kind||"dokument", proto:r.protocol_no||"—",
   date:fmtD(r.doc_date), from:r.from_to||"", subject:r.subject||"", due:r.due_date?fmtD(r.due_date):"",
-  size:kb(r.size_bytes), file:base(r.storage_path), sha:r.sha256||"", ocr:r.ocr_text||"", path:r.storage_path||null
+  size:kb(r.size_bytes), file:base(r.storage_path), sha:r.sha256||"", ocr:r.ocr_text||"", path:r.storage_path||null,
+  deleted:!!r.deleted_at, idx:0
 };}
 async function refresh(){
   const [cs,co,li,lg] = await Promise.all([
@@ -280,15 +283,19 @@ async function refresh(){
   const bad = [cs,co,li,lg].find(r=>r.error);
   if(bad){ toast("Gabim në ngarkim: "+bad.error.message); return; }
   S.data.cases = cs.data.map(mapCase);
-  S.data.docs  = co.data.filter(r=>!r.deleted_at).map(mapDoc);
+  S.data.docs  = co.data.map(mapDoc);
   S.data.log   = lg.data.map(r=>({ ts:fmtDT(r.ts), user:r.user_name||"—", act:ACT_LABEL[r.action]||r.action,
     doc:(r.document_id && (docById(r.document_id)||{}).proto) || "—", detail:r.detail||"" }));
+  /* indeksi i dokumentit brenda dosjes: #1, #2, #3… sipas rendit kronologjik */
+  const per={};
+  S.data.docs.forEach(d=>{ if(d.deleted) return; (per[d.case]=per[d.case]||[]).push(d); });
+  Object.values(per).forEach(arr=>arr.forEach((d,i)=>{ d.idx=i+1; }));
   Object.keys(REPLY_TO).forEach(k=>delete REPLY_TO[k]);
   Object.keys(REPLY_DOC).forEach(k=>delete REPLY_DOC[k]);
   li.data.forEach(l=>{
     if(l.relation!=="pergjigje_per") return;
     const reply=S.data.docs.find(d=>d.id===l.from_id);
-    if(!reply) return;                       /* përgjigja e fshirë nuk mbyll kërkesën */
+    if(!reply || reply.deleted) return;      /* përgjigja e fshirë nuk mbyll kërkesën */
     REPLY_TO[l.from_id]=l.to_id; REPLY_DOC[l.to_id]=l.from_id;
   });
   updateUserbox();
@@ -297,7 +304,8 @@ function updateUserbox(){
   const u=$("#userbox"); if(!S.profile){u.style.display="none";return;}
   const role = S.profile.role==="admin"?"drejtues":S.profile.role==="editor"?"regjistrues":"lexues";
   u.style.display="flex";
-  u.innerHTML = `<span class="who"><b>${esc(S.profile.full_name||"përdorues")}</b><small>${role}</small></span>
+  u.innerHTML = `<span id="livedot" title="Sinkronizim live me serverin (Realtime)" style="width:9px;height:9px;border-radius:50%;background:#4ade80;opacity:.35;transition:opacity .4s;box-shadow:0 0 6px #4ade80"></span>
+    <span class="who"><b>${esc(S.profile.full_name||"përdorues")}</b><small>${role}</small></span>
     <button onclick="doSignOut()">Dil</button>`;
 }
 async function doSignOut(){ await sb.auth.signOut(); }
@@ -422,6 +430,7 @@ async function maybeEnter(){
   S.profile=prof; S.enteredFor=S.session.user.id;
   $("#app").innerHTML=`<div class="loadbox" style="background:var(--bg);color:var(--muted)">Po ngarkohen të dhënat…</div>`;
   await refresh();
+  liveStart();
   route();
 }
 function cleanUrl(){
@@ -433,7 +442,7 @@ async function boot(){
   cleanUrl();
   sb.auth.onAuthStateChange((ev,sess)=>{
     if(ev==="PASSWORD_RECOVERY"){ S.session=sess; renderAuth("newpass"); return; }
-    if(ev==="SIGNED_OUT"){ S.session=null; S.profile=null; S.enteredFor=null; updateUserbox(); renderAuth("in"); return; }
+    if(ev==="SIGNED_OUT"){ S.session=null; S.profile=null; S.enteredFor=null; liveStop(); updateUserbox(); renderAuth("in"); return; }
     if(sess && S.session?.user?.id!==sess.user.id){ S.session=sess; S.enteredFor=null; }
     else if(sess){ S.session=sess; }
     if(sess) maybeEnter();
@@ -464,7 +473,8 @@ function sidebar(active){
     <div class="sec">Kontrolli</div>
     <a href="#/kerkesat" class="${active==="req"?"on":""}">${ico.alert}Kërkesa pa përgjigje<span class="n">${reqs}</span></a>
     <a href="#/kerkesat?vonuar=1" class="${active==="late"?"on":""}">${ico.alert}Afate të kaluara<span class="n">${late}</span></a>
-    ${S.profile && S.profile.role==="admin" ? `<a href="#/perdoruesit" class="${active==="usr"?"on":""}">${ico.users}Përdoruesit<span class="n">${""}</span></a>` : ""}
+    ${S.profile && S.profile.role==="admin" ? `<a href="#/perdoruesit" class="${active==="usr"?"on":""}">${ico.users}Përdoruesit</a>
+    <a href="javascript:void 0" onclick="downloadBackup()" title="Eksporto të gjitha të dhënat në një skedar JSON">${ico.dlb}Shkarko backup</a>` : ""}
     <div class="sec">Lidhje</div>
     <a href="#/gjurmimi" class="${active==="log"?"on":""}">${ico.book}Gjurmimi i ndryshimeve</a>
   </aside>`;
@@ -575,7 +585,22 @@ function casePage(id){
       </div></div>
     </div>
     <div class="toolbar" style="border-top:1px solid var(--line)"><h2>Dokumentet (${ds.length})</h2></div>
-    ${docsTable(ds)}`);
+    ${docsTable(ds)}
+    ${delDocsSection(id)}`);
+}
+function delDocsSection(cid){
+  if(S.profile?.role!=="admin") return "";
+  const del=docsOfAll(cid).filter(d=>d.deleted);
+  if(!del.length) return "";
+  return `<div class="toolbar" style="border-top:1px solid var(--line)"><h2 style="color:var(--bad)">Të fshira (${del.length}) · vetëm drejtuesi i sheh</h2></div>
+  <table class="tbl"><tbody>${del.map(d=>`<tr style="opacity:.6"><td><a href="#/dokument/${d.id}" class="t">${esc(d.proto)}</a></td>
+    <td>${esc(d.subject)}<div class="sub">${esc(d.from)}</div></td><td>${d.date}</td>
+    <td><button class="pill" onclick="restoreDoc('${d.id}')">↩ Rikthe</button></td></tr>`).join("")}</tbody></table>`;
+}
+async function restoreDoc(id){
+  const {error}=await sb.from("correspondence").update({deleted_at:null}).eq("id",id);
+  if(error) return toast(error.message);
+  toast("Dokumenti u rikthye"); await refresh(); docPage(id);
 }
 async function closeCase(id){
   const note=document.getElementById("closeNote").value.trim();
@@ -593,8 +618,9 @@ async function reopenCase(id){
 
 function docsTable(ds){
   if(!ds.length) return `<div class="empty">Nuk ka dokumente.</div>`;
-  return `<table class="tbl"><thead><tr><th>Protokolli</th><th>Lloji</th><th>Lënda</th><th>Data</th><th>Afati</th></tr></thead><tbody>
+  return `<table class="tbl"><thead><tr><th>Protokolli</th><th>Nr. në dosje</th><th>Lloji</th><th>Lënda</th><th>Data</th><th>Afati</th></tr></thead><tbody>
   ${ds.map(d=>`<tr><td><a href="#/dokument/${d.id}" class="t">${esc(d.proto)}</a></td>
+    <td class="t">#${d.idx||"—"}<div class="sub">${esc((caseOf(d.case)||{}).no||"—")}</div></td>
     <td><span class="tag ${d.dir==="hyrje"?"in":"out"}">${d.dir==="hyrje"?"Hyrje":"Dalje"}</span> <span class="sub">${esc(d.kind)}</span></td>
     <td>${esc(d.subject)}<div class="sub">${esc(d.from)}</div></td><td>${d.date}</td>
     <td>${d.due?(isLate(d)?`<span class="tag late">${d.due}</span>`:d.due):"—"}</td></tr>`).join("")}</tbody></table>`;
@@ -675,6 +701,7 @@ function docPage(id){
       <h1>${esc(d.subject)}</h1>
       <dl class="kv">
         <dt>Protokolli</dt><dd>${esc(d.proto)}</dd>
+        <dt>Dosja · Nr.</dt><dd><a href="#/dosje/${c.id}">${esc(c.no)}</a> · dokumenti <b>#${d.idx||"—"}</b> i dosjes</dd>
         <dt>Lloji</dt><dd>${d.dir==="hyrje"?"Hyrje":"Dalje"} · ${esc(d.kind)}</dd>
         <dt>Data</dt><dd>${d.date}</dd>
         <dt>Nga / për</dt><dd>${esc(d.from)}</dd>
@@ -683,13 +710,18 @@ function docPage(id){
         ${d.due?`<dt>Afati</dt><dd>${late?'<span class="tag late">'+d.due+' · e kaluar</span>':d.due}</dd>`:""}
         <dt>Skedari</dt><dd>${esc(d.file)} · ${d.size}</dd>
       </dl>
+      ${d.deleted
+        ? `<div class="notice bad" style="margin-bottom:14px">🗑 KY DOKUMENT ËSHTË FSHIRË — ruhet në gjurmim.${S.profile?.role==="admin"?` <button class="pill" onclick="restoreDoc('${d.id}')">↩ Rikthe</button>`:""}</div>`
+        : (["admin","editor"].includes(S.profile?.role)?`
+      <button class="btn line" onclick="location.hash='#/ndrysho/${d.id}'">✎ Ndrysho të dhënat</button>
+      <button class="btn line" style="color:var(--bad);border-color:var(--bad)" onclick="deleteDoc('${d.id}')">✕ Fshi dokumentin</button>`:"")}
       <button class="btn red" onclick="downloadDoc('${d.id}',false)">${ico.dl} Shkarko skedarin (${d.size})</button>
       <button class="btn line" onclick="downloadDoc('${d.id}',true)">${ico.dl} Hap në skedë të re</button>
       ${d.sha?`<div class="hl" style="margin-top:16px">SHA-256 (për verifikim integriteti)</div><div class="hash">${esc(d.sha)}</div>`:""}
       ${d.kind==="kërkesë" && reqOpen(d) ? `<div class="box ${late?"late":""}"><b>Kërkesë pa përgjigje</b><div class="sub" style="margin-top:4px">${late?"Afati ka kaluar.":"Lidhni përgjigjen për ta mbyllur kërkesën."}</div>
         ${["admin","editor"].includes(S.profile?.role)?`<button class="btn line" style="margin-top:10px;margin-bottom:0" onclick="location.hash='#/regjistro?case=${d.case}&dir=dalje&kind=përgjigje&reply=${d.id}'">Regjistro përgjigjen</button>`:""}</div>`:""}
       <div class="hl">Dokumente të lidhura në dosje (${rel.length})</div>
-      <ul class="rel">${rel.length? rel.map(r=>`<li><span class="dot ${r.g?"g":"o"}"></span><div><a href="#/dokument/${r.t.id}">${esc(r.t.proto)}</a>
+      <ul class="rel">${rel.length? rel.map(r=>`<li><span class="dot ${r.g?"g":"o"}"></span><div><a href="#/dokument/${r.t.id}">${esc(r.t.proto)}</a> <span class="sm">#${r.t.idx||"—"}</span>
         <div class="sm">${esc(r.t.subject)}</div><div class="sm">${r.t.dir==="hyrje"?"Hyrje":"Dalje"} · ${r.t.date}</div></div></li>`).join("") : `<li class="sm">Asnjë lidhje.</li>`}</ul>
     </div>
   </div>`);
@@ -946,11 +978,104 @@ async function saveReg(f){
       if(lk.error) toast("Lidhja me kërkesën dështoi: "+lk.error.message);
     }
     await refresh();
-    toast(`U regjistrua me protokollin ${ins.data.protocol_no||"—"}`);
+    const saved = docById(ins.data.id);
+    toast(`U regjistrua: ${ins.data.protocol_no||"—"} · dokumenti #${saved?.idx||"?"} i dosjes ${cs.no}`);
     location.hash = "#/dokument/"+ins.data.id;
   } finally {
     saveBtn.disabled=false; saveBtn.textContent="Ruaj dhe protokollo";
   }
+}
+
+/* ---------- modifikimi dhe fshirja e dokumenteve ---------- */
+const isoOf = ddmm => { if(!ddmm||ddmm==="—") return ""; const p=String(ddmm).split("/"); return p.length===3?`${p[2]}-${p[1]}-${p[0]}`:""; };
+function editDoc(id){
+  const d=docById(id); if(!d) return notFound();
+  if(!["admin","editor"].includes(S.profile?.role)) return notFound();
+  const c=caseOf(d.case)||{no:"—"};
+  const kinds=[...new Set([d.kind,...KINDS])];
+  shellRender("",[{t:"Arkiva",h:"#/"},{t:"Dosjet",h:"#/dosjet"},{t:c.no,h:"#/dosje/"+d.case},{t:"Ndrysho "+d.proto}],
+  `<div class="toolbar"><h2>Ndrysho dokumentin ${esc(d.proto)} <span class="sub" style="font-weight:400">· dosja ${esc(c.no)} · dokumenti #${d.idx}</span></h2></div>
+  <form id="editf" style="padding:0 22px 22px" novalidate>
+    <div class="fgrid">
+      <div class="fld full"><label>Lënda</label><input name="subject" maxlength="200" value="${esc(d.subject)}" required></div>
+      <div class="fld"><label>Nga / për kë</label><input name="from" value="${esc(d.from)}"></div>
+      <div class="fld"><label>Lloji</label><select name="kind">${kinds.map(k=>`<option ${k===d.kind?"selected":""}>${esc(k)}</option>`).join("")}</select></div>
+      <div class="fld"><label>Data e dokumentit</label><input type="date" name="date" value="${isoOf(d.date)}"></div>
+      <div class="fld"><label>Afati (vetëm për kërkesa)</label><input type="date" name="due" value="${d.due?isoOf(d.due):""}"></div>
+    </div>
+    <div id="editNotice"></div>
+    <div class="fbtn"><a class="ghost" style="text-decoration:none" href="#/dokument/${d.id}">Anulo</a>
+      <button type="submit" class="btn red">Ruaj ndryshimet</button></div>
+  </form>`);
+  document.getElementById("editf").addEventListener("submit", async e=>{
+    e.preventDefault();
+    const f=e.target;
+    const note=t=>{ document.getElementById("editNotice").innerHTML=`<div class="notice bad">${t}</div>`; window.scrollTo(0,0); };
+    const kind=f.kind.value, subject=f.subject.value.trim(), from=f.from.value.trim();
+    if(!subject) return note("Lënda është e detyrueshme.");
+    if(!from) return note("Plotësoni fushën «Nga / për kë».");
+    if(kind==="kërkesë" && !f.due.value) return note("Kërkesa duhet të ketë afat përgjigjeje.");
+    const patch={ subject, from_to:from, kind, doc_date:f.date.value||null,
+      due_date: kind==="kërkesë" ? (f.due.value||null) : null };
+    const {error} = await sb.from("correspondence").update(patch).eq("id",id);
+    if(error) return note("Ruajtja dështoi: "+esc(error.message));
+    toast("Ndryshimet u ruajtën");
+    await refresh(); location.hash="#/dokument/"+id; docPage(id);
+  });
+}
+async function deleteDoc(id){
+  const d=docById(id); if(!d) return;
+  if(!["admin","editor"].includes(S.profile?.role)) return;
+  if(!confirm(`Fshi dokumentin ${d.proto} (${d.subject})?\n\nFshihet nga pamjet normale, por mbetet në gjurmim dhe drejtuesi mund ta rikthejë. Skedari fizik NUK fshihet nga ruajtësja.`)) return;
+  const {error} = await sb.from("correspondence").update({deleted_at:new Date().toISOString()}).eq("id",id);
+  if(error) return toast(error.message);
+  toast("Dokumenti u fshi (mbetet në gjurmim)");
+  await refresh(); casePage(d.case);
+}
+
+/* ---------- backup (vetëm drejtuesi) ---------- */
+async function downloadBackup(){
+  if(S.profile?.role!=="admin") return toast("Vetëm drejtuesi mund të shkarkojë backup.");
+  toast("Po përgatitet backup-i i plotë…");
+  const tables=[["cases","*"],["correspondence","*"],["correspondence_links","*"],["activity_log","*"],
+                ["folders","*"],["documents","*"],["profiles","id,full_name,role,active,created_at"]];
+  const out={ project:SUPABASE_URL, site:SITE_URL, exported_at:new Date().toISOString(),
+    note:"ARKIVA ELEKTRONIKE · kopje e plotë e të dhënave. Restore: përmes Supabase SQL Editor (upsert) ose nga administratori. Skedarët fizikë mbeten në Storage (bucket 'dokumente')." };
+  for(const [t,cols] of tables){
+    const {data,error} = await sb.from(t).select(cols);
+    if(error){ toast(`Backup · ${t}: ${error.message}`); continue; }
+    out[t]=data;
+  }
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(out,null,2)],{type:"application/json"}));
+  a.download=`arkiva-backup-${new Date().toISOString().slice(0,16).replace(/[:T]/g,"-")}.json`;
+  a.click();
+  toast("Backup-i u shkarkua në kompjuterin tuaj");
+}
+
+/* ---------- sinkronizimi live (Realtime, ~1 sekondë) ---------- */
+let LIVE=null, liveT=null;
+function liveStart(){
+  liveStop();
+  LIVE = sb.channel("arkiva-live")
+    .on("postgres_changes",{event:"*",schema:"public",table:"cases"},livePing)
+    .on("postgres_changes",{event:"*",schema:"public",table:"correspondence"},livePing)
+    .on("postgres_changes",{event:"*",schema:"public",table:"correspondence_links"},livePing)
+    .on("postgres_changes",{event:"*",schema:"public",table:"activity_log"},livePing)
+    .subscribe();
+}
+function liveStop(){ if(LIVE){ try{ sb.removeChannel(LIVE); }catch(_){} LIVE=null; } clearTimeout(liveT); }
+function livePing(){
+  const dot=document.getElementById("livedot");
+  if(dot){ dot.style.opacity="1"; setTimeout(()=>{ dot.style.opacity=".35"; },1500); }
+  clearTimeout(liveT);
+  liveT=setTimeout(async()=>{
+    /* mos i prish format që po plotësohen */
+    if(document.getElementById("regf") || document.getElementById("editf")) return;
+    if(!S.session || !S.profile || !S.profile.active) return;
+    await refresh();
+    route();
+  },500);
 }
 
 /* ---------- router ---------- */
@@ -963,6 +1088,7 @@ function route(){
   window.scrollTo(0,0);
   if(path.startsWith("#/dosje/")) return casePage(path.split("/")[2]);
   if(path.startsWith("#/dokument/")) return docPage(path.split("/")[2]);
+  if(path.startsWith("#/ndrysho/")) return editDoc(path.split("/")[2]);
   if(path.startsWith("#/dosjet")) return casesPage(params);
   if(path.startsWith("#/kerkesat")) return requestsPage(params);
   if(path.startsWith("#/gjurmimi")) return logPage();
