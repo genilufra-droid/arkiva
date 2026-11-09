@@ -230,7 +230,7 @@ try{
 }
 
 /* ---------- gjendja ---------- */
-const S = { session:null, profile:null, enteredFor:null, data:{cases:[],docs:[],log:[]} };
+const S = { session:null, profile:null, enteredFor:null, data:{cases:[],docs:[],log:[],contracts:[]} };
 
 /* ---------- ndihmës ---------- */
 const $ = s => document.querySelector(s);
@@ -267,7 +267,11 @@ const ACT_LABEL = {
   dosje_fshire:"Dosje e fshirë", dokument_ngarkuar:"Dokument i ngarkuar", dokument_riemertuar:"Dokument i riemërtuar",
   dokument_larguar:"Dokument i larguar", dokument_shtuar:"Dokument i shtuar", dokument_fshire:"Dokument i fshirë",
   dokument_rikthyer:"Dokument i rikthyer", dosje_hapur:"Dosje e hapur", dosje_mbyllur:"Dosje e mbyllur",
-  dosje_rihapur:"Dosje e rihapur", dokument_regjistruar:"Dokument i regjistruar", lidhje_shtuar:"Lidhje e shtuar"
+  dosje_rihapur:"Dosje e rihapur", dokument_regjistruar:"Dokument i regjistruar", lidhje_shtuar:"Lidhje e shtuar",
+  kontrata_krijuar:"Kontratë e krijuar", kontrata_ndryshuar:"Kontratë e ndryshuar", kontrata_fshire:"Kontratë e fshirë",
+  kontrata_rikthyer:"Kontratë e rikthyer", kontrata_skedar:"Skedar kontrate", pagesa_shtuar:"Pagesë e shtuar",
+  pagesa_paguar:"Pagesë e shënuar paguar", pagesa_hapur:"Pagesë e hapur", pagesa_ndryshuar:"Pagesë e ndryshuar",
+  pagesa_fshire:"Pagesë e fshirë"
 };
 const AUTH_ERR = {
   "Invalid login credentials":"Kredenciale të pasakta — kontrolloni email-in dhe fjalëkalimin.",
@@ -302,19 +306,21 @@ function mapDoc(r){ return {
   mime:r.mime||"", deleted:!!r.deleted_at, idx:0
 };}
 async function refresh(){
-  const [cs,co,li,lg] = await Promise.all([
+  const [cs,co,li,lg,kt] = await Promise.all([
     sb.from("cases").select("*").order("opened_at",{ascending:false}),
     sb.from("correspondence").select("*").order("doc_date",{ascending:true}).order("created_at",{ascending:true}),
     sb.from("correspondence_links").select("from_id,to_id,relation"),
-    sb.from("activity_log").select("*").order("id",{ascending:false}).limit(300)
+    sb.from("activity_log").select("*").order("id",{ascending:false}).limit(300),
+    sb.from("contracts").select("*,payments:contract_payments(*)").order("created_at",{ascending:false})
   ]);
-  const bad = [cs,co,li,lg].find(r=>r.error);
+  const bad = [cs,co,li,lg,kt].find(r=>r.error);
   if(bad){ toast("Gabim në ngarkim: "+bad.error.message); return; }
   S.data.cases = cs.data.map(mapCase);
   S.data.docs  = co.data.map(mapDoc);
   S.data.links = li.data;
+  S.data.contracts = kt.data.map(mapContract);
   S.data.log   = lg.data.map(r=>({ ts:fmtDT(r.ts), user:r.user_name||"—", act:ACT_LABEL[r.action]||r.action,
-    doc:(r.document_id && (docById(r.document_id)||{}).proto) || "—", detail:r.detail||"", dref:r.document_id||null }));
+    doc:(r.document_id && (docById(r.document_id)||{}).proto) || (r.contract_id && (kontrataById(r.contract_id)||{}).no) || "—", detail:r.detail||"", dref:r.document_id||null, cref:r.contract_id||null }));
   /* indeksi i dokumentit brenda dosjes: #1, #2, #3… sipas rendit kronologjik */
   const per={};
   S.data.docs.forEach(d=>{ if(d.deleted) return; (per[d.case]=per[d.case]||[]).push(d); });
@@ -493,6 +499,7 @@ function sidebar(active){
   const late   = S.data.docs.filter(d=>isLate(d)).length;
   const hyrje  = S.data.docs.filter(d=>d.dir==="hyrje").length;
   const dalje  = S.data.docs.filter(d=>d.dir==="dalje").length;
+  const kj     = kujtesa7();
   const a=(k,label,n,href)=>`<a href="${href}" class="${active===k?"on":""}">${ico.folder}${label}<span class="n">${n}</span></a>`;
   return `<aside class="side">
     <div class="sh">Shfleto arkivin</div>
@@ -503,6 +510,10 @@ function sidebar(active){
     <div class="sec">Korrespondenca</div>
     ${a("in","Hyrje (protokolli H)",hyrje,"#/dosjet?d=hyrje")}
     ${a("out","Dalje (protokolli D)",dalje,"#/dosjet?d=dalje")}
+    <div class="sec">Kontratat</div>
+    ${a("kon","Kontratat",S.data.contracts.filter(k=>!k.deleted).length,"#/kontratat")}
+    ${kj.n?`<a href="#/kontratat?k=1" class="${active==="kuj"?"on":""}">${ico.alert}Kujtesa (7 ditë)<span class="n" style="background:var(--badbg);color:var(--bad)">${kj.n}</span></a>`:""}
+    ${can("regjistro")?`<a href="#/kontrata-re" class="newlink ${active==="kreg"?"on":""}">＋ Regjistro kontratë</a>`:""}
     <div class="sec">Kontrolli</div>
     <a href="#/kerkesat" class="${active==="req"?"on":""}">${ico.alert}Kërkesa pa përgjigje<span class="n">${reqs}</span></a>
     <a href="#/kerkesat?vonuar=1" class="${active==="late"?"on":""}">${ico.alert}Afate të kaluara<span class="n">${late}</span></a>
@@ -537,9 +548,19 @@ function home(){
   </section>
   <section class="wrap">${sidebar("home")}<div class="main">
     <div class="crumbs"><a href="#/">${ico.home}</a><span class="sep">›</span><span>Kryefaqja</span></div>
+    ${(()=>{ const kj=kujtesa7(); if(!kj.n) return "";
+      return `<div class="box" style="margin-bottom:14px;border-left:4px solid var(--bad)">
+      <div class="hl" style="color:var(--bad)">⚠ Kujtesa — pagesa dhe afate brenda 7 ditëve</div>
+      <ul class="rel" style="border:0;margin:0">
+      ${kj.pays.slice(0,4).map(x=>`<li><span class="dot"></span><div>
+        <a href="#/kontrata/${x.k.id}">${esc(x.k.no)}</a> — pagesë ${fmtLek(x.p.amt)}${x.p.desc?` · ${esc(x.p.desc)}`:""}
+        <div class="sm">${x.d<0?`<b style="color:var(--bad)">ME VONESË</b> · afati ${x.p.dueD}`:`afati ${x.p.dueD} · pas ${x.d} ditësh`}</div></div></li>`).join("")}
+      ${kj.pays.length>4?`<li class="sm"><a href="#/kontratat?k=1">… edhe ${kj.pays.length-4} pagesa të tjera →</a></li>`:""}
+      ${kj.kontratat.slice(0,3).map(k=>`<li><span class="dot"></span><div><a href="#/kontrata/${k.id}">${esc(k.no)}</a> — skadon më ${k.endD}<div class="sm">${esc(k.title)}</div></div></li>`).join("")}
+      </ul></div>`; })()}
     <div class="toolbar"><h2>Kërkesa që presin përgjigje (${reqs.length})</h2><a href="#/kerkesat" class="pill">Shiko të gjitha →</a>${can("regjistro")?`<a href="#/regjistro" class="newbtn">＋ Regjistro dokument</a>`:`<span class="newbtn dis">＋ Regjistro dokument</span>`}</div>
     ${reqs.length? `<table class="tbl"><thead><tr><th>Protokolli</th><th>Lënda</th><th>Nga</th><th>Afati</th><th>Statusi</th></tr></thead><tbody>
-    ${reqs.map(d=>`<tr><td><a href="#/dokument/${d.id}" class="t">${esc(d.proto)}</a></td><td>${esc(d.subject)}<div class="sub">${esc((caseOf(d.case)||{}).no||"")}</div></td>
+    ${reqs.map(d=>`<tr><td><a href="#/dokument/${d.id}" class="t">${esc(d.proto)}</a></td><td>${esc(d.subject)}<div class="sub">${esc((caseOf(d.case)||{}).no||"")} · #${d.idx||"—"} në dosje</div></td>
       <td>${esc(d.from)}</td><td>${d.due||"—"}</td>
       <td>${isLate(d)?'<span class="tag late">Me vonesë</span>':'<span class="tag open">Në pritje</span>'}</td></tr>`).join("")}
     </tbody></table>` : `<div class="empty">Asnjë kërkesë pa përgjigje.</div>`}
@@ -667,7 +688,7 @@ function requestsPage(params){
       <a href="#/kerkesat" class="pill ${!onlyLate?"on":""}">Të gjitha</a><a href="#/kerkesat?vonuar=1" class="pill ${onlyLate?"on":""}">Me vonesë</a></div>
      ${reqs.length?`<table class="tbl"><thead><tr><th>Protokolli</th><th>Dosja</th><th>Nga</th><th>Afati</th><th>Statusi</th></tr></thead><tbody>
      ${reqs.map(d=>`<tr><td><a href="#/dokument/${d.id}" class="t">${esc(d.proto)}</a><div class="sub">${esc(d.subject)}</div></td>
-       <td><a href="#/dosje/${d.case}">${esc((caseOf(d.case)||{}).no||"—")}</a></td><td>${esc(d.from)}</td><td>${d.due||"—"}</td>
+       <td><a href="#/dosje/${d.case}">${esc((caseOf(d.case)||{}).no||"—")}</a><div class="sub">#${d.idx||"—"} në dosje</div></td><td>${esc(d.from)}</td><td>${d.due||"—"}</td>
        <td>${isLate(d)?'<span class="tag late">Me vonesë</span>':'<span class="tag open">Në pritje</span>'}</td></tr>`).join("")}
      </tbody></table>`:`<div class="empty">Asnjë rast.</div>`}`);
 }
@@ -766,7 +787,7 @@ function docPage(id){
     : `<div class="vbar"><span>pa skedar — parapamje regjistri</span><span class="sp"></span>
         <button onclick="zoom(-10)">−</button><span id="zv">100%</span><button onclick="zoom(10)">+</button></div>
       <div id="paperwrap"><div class="paper" id="paper" style="zoom:1">
-        <div class="hd"><b>${d.dir==="hyrje"?"REGJISTRI I HYRJES":d.dir==="dalje"?"REGJISTRI I DALJES":"REGJISTRI I BRENDSHËM"}</b><br><small>Nr. protokolli: ${esc(d.proto)} · ${d.date}</small></div>
+        <div class="hd"><b>${d.dir==="hyrje"?"REGJISTRI I HYRJES":d.dir==="dalje"?"REGJISTRI I DALJES":"REGJISTRI I BRENDSHËM"}</b><br><small>Nr. protokolli: ${esc(d.proto)} · ${d.date}</small><br><small>Nr. në dosje: #${d.idx||"—"} · ${esc((caseOf(d.case)||{}).no||"—")}</small></div>
         <div class="meta"><span>Nga/për: ${esc(d.from)}</span><span>Lloji: ${esc(d.kind)}</span></div>
         <p><b>Lënda:</b> ${esc(d.subject)}</p>
         ${d.ocr ? esc(d.ocr).split("\n").map(p=>`<p>${p}</p>`).join("") : `<div class="ln"></div><div class="ln" style="width:70%"></div><div class="ln" style="width:85%"></div>`}
@@ -1162,12 +1183,274 @@ async function deleteDoc(id){
   await refresh(); casePage(d.case);
 }
 
+/* ---------- kontratat: regjistrim, pagesa, kujtesa 7-ditore ---------- */
+function mapContract(r){
+  const pays=(r.payments||[]).map(p=>({ id:p.id, due:p.due_date, dueD:fmtD(p.due_date), amt:+p.amount,
+    desc:p.description||"", paid:!!p.paid, paidD:p.paid_at?fmtD(p.paid_at):"" }))
+    .sort((a,b)=>String(a.due).localeCompare(String(b.due)));
+  return { id:r.id, no:r.contract_no||"—", title:r.title||"", party:r.counterparty||"",
+    start:r.start_date||"", startD:fmtD(r.start_date), end:r.end_date||"", endD:fmtD(r.end_date),
+    value:r.value_num!=null?+r.value_num:null, notes:r.notes||"",
+    path:r.storage_path||null, file:r.file_name||"", size:kb(r.size_bytes), mime:r.mime||"", sha:r.sha256||"",
+    deleted:!!r.deleted_at, created:fmtD(r.created_at), pays };
+}
+const kontrataById = id => S.data.contracts.find(k=>k.id===id);
+const fmtLek = n => (n==null||n==="")?"—":Number(n).toLocaleString("sq-AL")+" LEK";
+function konStatusi(k){
+  const t0=new Date(); t0.setHours(0,0,0,0);
+  if(k.deleted) return {t:"Fshirë",cls:"late",d:null};
+  if(!k.end) return {t:"Pa afat",cls:"out",d:null};
+  const d=Math.round((new Date(k.end+"T00:00:00")-t0)/864e5);
+  if(d<0)  return {t:"Skaduar",cls:"late",d};
+  if(d<=7) return {t:"Skadon",cls:"open",d};
+  return {t:"Aktive",cls:"closed",d};
+}
+function kujtesa7(){
+  const t0=new Date(); t0.setHours(0,0,0,0);
+  const pays=[];
+  S.data.contracts.forEach(k=>{ if(k.deleted) return;
+    k.pays.forEach(p=>{ if(p.paid) return;
+      const d=Math.round((new Date(p.due+"T00:00:00")-t0)/864e5);
+      if(d<=7) pays.push({k,p,d});
+    });
+  });
+  pays.sort((a,b)=>a.p.due.localeCompare(b.p.due));
+  const kontratat=S.data.contracts.filter(k=>{ if(k.deleted||!k.end) return false;
+    const d=Math.round((new Date(k.end+"T00:00:00")-t0)/864e5); return d>=0&&d<=7; });
+  return {pays,kontratat,n:pays.length+kontratat.length};
+}
+function contractsPage(params){
+  const q=(params.get("q")||"").toLowerCase(), st=params.get("s"), km=params.get("k")==="1";
+  const kj=kujtesa7();
+  let list=S.data.contracts.filter(k=>!k.deleted);
+  if(km) list=list.filter(k=>kj.pays.some(x=>x.k.id===k.id)||kj.kontratat.some(x=>x.id===k.id));
+  else if(st==="aktive") list=list.filter(k=>{const s=konStatusi(k);return s.t==="Aktive"||s.t==="Skadon";});
+  else if(st==="skaduar") list=list.filter(k=>konStatusi(k).t==="Skaduar");
+  if(q) list=list.filter(k=>(k.no+" "+k.title+" "+k.party).toLowerCase().includes(q));
+  const del=S.data.contracts.filter(k=>k.deleted);
+  shellRender("kon",[{t:"Arkiva",h:"#/"},{t:"Kontratat"}],
+  `<div class="toolbar"><h2>${km?"⚠ Kujtesa — brenda 7 ditëve":st==="aktive"?"Kontrata aktive":st==="skaduar"?"Kontrata të skaduara":"Kontratat"} (${list.length})</h2></div>
+   <form class="sbox" style="margin:0 22px;width:auto" onsubmit="event.preventDefault();location.hash='#/kontratat?q='+encodeURIComponent(this.q.value)">
+     ${ico.search}<input name="q" value="${esc(params.get("q")||"")}" placeholder="Kërko nr., objekt, palë…" autocomplete="off"></form>
+   <div style="padding:12px 22px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+     <a href="#/kontratat" class="pill ${!st&&!km?"on":""}">Të gjitha</a>
+     <a href="#/kontratat?s=aktive" class="pill ${st==="aktive"&&!km?"on":""}">Aktive</a>
+     <a href="#/kontratat?s=skaduar" class="pill ${st==="skaduar"&&!km?"on":""}">Skaduar</a>
+     ${kj.n?`<a href="#/kontratat?k=1" class="pill ${km?"on":""}" style="background:var(--badbg);color:var(--bad)">⚠ Kujtesa (${kj.n})</a>`:""}
+     ${can("regjistro")?`<a href="#/kontrata-re" class="newbtn" style="margin-left:auto">＋ Regjistro kontratë</a>`:""}
+   </div>
+   ${contractTable(list)}
+   ${can("fshi")&&del.length?`<div class="toolbar" style="border-top:1px solid var(--line)"><h2 style="color:var(--bad)">Të fshira (${del.length})</h2></div>
+     <table class="tbl"><tbody>${del.map(k=>`<tr style="opacity:.6"><td><a href="#/kontrata/${k.id}" class="t">${esc(k.no)}</a></td>
+       <td>${esc(k.title)}</td><td>${k.endD||"—"}</td>
+       <td><button class="pill" onclick="restoreContract('${k.id}')">↩ Rikthe</button></td></tr>`).join("")}</tbody></table>`:""}`);
+}
+function contractTable(list){
+  if(!list.length) return `<div class="empty">Nuk ka kontrata.</div>`;
+  return `<table class="tbl"><thead><tr><th>Nr.</th><th>Objekti</th><th>Afati</th><th>Vlera</th><th>Pagesa</th><th>Statusi</th></tr></thead><tbody>
+  ${list.map(k=>{ const s=konStatusi(k); const nx=k.pays.find(p=>!p.paid);
+    return `<tr><td><a href="#/kontrata/${k.id}" class="t">${esc(k.no)}</a></td>
+    <td>${esc(k.title)}<div class="sub">${esc(k.party||"—")}</div></td>
+    <td>${k.startD||"—"} → ${k.endD||"—"}${s.d!=null?`<div class="sub">${s.d<0?`skaduar ${-s.d} d më parë`:`${s.d} d mbeten`}</div>`:""}</td>
+    <td class="t">${fmtLek(k.value)}</td>
+    <td>${k.pays.filter(p=>p.paid).length}/${k.pays.length}${nx?`<div class="sub">tjetra: ${nx.dueD}</div>`:""}</td>
+    <td><span class="tag ${s.cls}">${s.t}</span></td></tr>`; }).join("")}
+  </tbody></table>`;
+}
+function contractPage(id){
+  const k=kontrataById(id); if(!k) return notFound();
+  const st=konStatusi(k);
+  const paguar=k.pays.filter(p=>p.paid).length;
+  const total=k.pays.reduce((s,p)=>s+p.amt,0);
+  const hist=S.data.log.filter(l=>l.cref===k.id);
+  const t0=new Date(); t0.setHours(0,0,0,0);
+  shellRender("",[{t:"Arkiva",h:"#/"},{t:"Kontratat",h:"#/kontratat"},{t:k.no}],
+  `<div class="toolbar"><h2>${esc(k.no)} · ${esc(k.title)}</h2>
+    <span style="flex:1"></span>
+    ${!k.deleted&&can("ndrysho")?`<a href="#/kontrata-ndrysho/${k.id}" class="pill">✎ Modifiko</a>`:""}
+    ${can("fshi")?(k.deleted?`<button class="pill" onclick="restoreContract('${k.id}')">↩ Rikthe</button>`:`<button class="pill" style="color:var(--bad)" onclick="deleteContract('${k.id}')">✕ Fshij</button>`):""}
+  </div>
+  ${k.deleted?`<div class="notice bad" style="margin:0 22px 14px">🗑 KONTRATA E FSHIRË — ruhet në gjurmim dhe mund të rikthehet.</div>`:""}
+  <div class="box"><div class="hl">Të dhënat</div>
+    <dl class="kv">
+      <dt>Objekti</dt><dd>${esc(k.title)}</dd>
+      <dt>Palët</dt><dd>${esc(k.party||"—")}</dd>
+      <dt>Nr. i kontratës</dt><dd>${esc(k.no)}</dd>
+      <dt>Nisja</dt><dd>${k.startD}</dd>
+      <dt>Skadimi</dt><dd>${k.endD}${st.d!=null?` <span class="tag ${st.cls}">${st.t}${st.d>=0?` · ${st.d} d`:""}</span>`:""}</dd>
+      <dt>Vlera</dt><dd>${fmtLek(k.value)}</dd>
+      ${k.notes?`<dt>Shënime</dt><dd>${esc(k.notes)}</dd>`:""}
+      <dt>Krijuar më</dt><dd>${k.created}</dd>
+    </dl>
+    <div class="hl" style="margin-top:16px">Skedari i skanuar</div>
+    ${k.path?`
+      <div><b>${esc(k.file)}</b> <span class="sub">· ${k.size}</span>
+        ${can("shkarko")?`<button class="pill" onclick="downloadContract('${k.id}')">⤓ Shkarko</button>`:""}</div>
+      ${k.sha?`<div class="hash" style="margin-top:8px">${esc(k.sha)}</div>`:""}
+      ${!k.deleted&&can("ndrysho")?`<label class="btn line" style="margin-top:8px">↻ Zëvendëso skedarin<input type="file" hidden onchange="uploadContractFile('${k.id}',this)"></label>`:""}`
+    :(!k.deleted&&can("ndrysho")?`<label class="btn line">⤒ Ngarko skedarin e skanuar<input type="file" hidden onchange="uploadContractFile('${k.id}',this)"></label>`
+      :`<div class="sub" style="color:var(--muted)">Pa skedar të ngarkuar.</div>`)}
+  </div>
+  <div class="box"><div class="hl">Pagesat — paguar ${paguar} nga ${k.pays.length} · totali ${fmtLek(total)}</div>
+    <table class="tbl"><thead><tr><th>Afati</th><th>Shuma</th><th>Përshkrimi</th><th>Gjendja</th><th></th></tr></thead><tbody>
+    ${k.pays.length? k.pays.map(p=>{
+      const d=Math.round((new Date(p.due+"T00:00:00")-t0)/864e5);
+      const gj = p.paid? `<span class="tag closed">Paguar${p.paidD?` më ${p.paidD}`:""}</span>`
+        : d<0? `<span class="tag late">Me vonesë · ${-d} d</span>`
+        : d<=7? `<span class="tag open">Afër · pas ${d} d</span>`
+        : `<span class="tag out">Paditur</span>`;
+      return `<tr><td class="t">${p.dueD}</td><td class="t">${fmtLek(p.amt)}</td><td>${esc(p.desc||"—")}</td><td>${gj}</td>
+        <td style="white-space:nowrap">
+        ${!p.paid&&!k.deleted&&can("ndrysho")?`<button class="pill" onclick="markPaid('${p.id}','${k.id}',1)">✓ Paguar</button>`:""}
+        ${p.paid&&can("ndrysho")?`<button class="pill" onclick="markPaid('${p.id}','${k.id}',0)">↩ Hap</button>`:""}
+        ${can("fshi")?`<button class="pill" style="color:var(--bad)" onclick="delPayment('${p.id}','${k.id}')">✕</button>`:""}</td></tr>`;
+    }).join("") : `<tr><td colspan="5" class="sub" style="color:var(--muted)">Asnjë pagesë e regjistruar.</td></tr>`}
+    </tbody></table>
+    ${!k.deleted&&can("regjistro")?`<div style="display:grid;grid-template-columns:150px 150px 1fr auto;gap:8px;margin-top:12px;max-width:760px">
+      <input type="date" id="np-due" title="Afati i pagesës"><input type="number" id="np-amt" step="0.01" min="0" placeholder="Shuma (LEK)">
+      <input id="np-desc" placeholder="Përshkrimi (p.sh. kësti 1)">
+      <button class="btn line" style="width:auto;margin:0;padding:9px 16px" onclick="addPayment('${k.id}')">＋ Shto</button></div>`:""}
+  </div>
+  ${hist.length?`<div class="box"><div class="hl">Historiku i ndryshimeve</div>
+    <ul class="rel" style="border:0">
+    ${hist.map(h=>`<li><span class="dot"></span><div><b>${esc(h.act)}</b>
+      <div class="sm">${esc(h.ts)} · ${esc(h.user)}</div>${h.detail?`<div class="sm">${esc(h.detail)}</div>`:""}</div></li>`).join("")}
+    </ul></div>`:""}`);
+}
+function contractForm(id){
+  const k=id?kontrataById(id):null;
+  if(id&&!k) return notFound();
+  if(id&&!can("ndrysho")) return notFound();
+  if(!id&&!can("regjistro")) return shellRender("kreg",[{t:"Arkiva",h:"#/"},{t:"Kontratat",h:"#/kontratat"},{t:"Regjistro"}],
+    `<div class="empty">S'ke të drejtën e regjistrimit të kontratave.</div>`);
+  shellRender(id?"kedit":"kreg",[{t:"Arkiva",h:"#/"},{t:"Kontratat",h:"#/kontratat"},{t:id?"Modifiko":"Regjistro kontratë"}],
+  `<form id="kform" class="box" style="padding:22px" onsubmit="saveContract(event,'${id||""}')">
+    <div class="fgrid">
+      <div class="fld"><label>Numri i kontratës *</label><input name="nr" required placeholder="p.sh. K-2026-001"></div>
+      <div class="fld"><label>Palët (kontraktuesi)</label><input name="pale" placeholder="p.sh. Ndërmarrja X sh.p.k."></div>
+      <div class="fld full"><label>Objekti *</label><input name="objekti" required placeholder="Çfarë mbulon kontrata"></div>
+      <div class="fld"><label>Data e nisjes</label><input type="date" name="nisja"></div>
+      <div class="fld"><label>Data e skadimit</label><input type="date" name="skadimi"></div>
+      <div class="fld"><label>Vlera në LEK</label><input type="number" name="vlera" step="0.01" min="0" placeholder="0.00"></div>
+      <div class="fld full"><label>Shënime</label><textarea name="shenime" rows="3" style="width:100%"></textarea></div>
+      ${!id?`<div class="fld full"><label>Skedari i skanuar (opsional)</label><input type="file" name="skedari"></div>`:""}
+    </div>
+    ${!id?`<div class="hl" style="margin-top:18px">Orari i pagesave (opsional)</div>
+      <table class="tbl"><thead><tr><th>Afati</th><th>Shuma (LEK)</th><th>Përshkrimi</th><th></th></tr></thead><tbody id="payrows"></tbody></table>
+      <button type="button" class="pill" style="margin-top:8px" onclick="addPayRow()">＋ Shto pagesë</button>`:""}
+    <button class="btn red" id="ksave" style="margin-top:18px">${id?"Ruaj ndryshimet":"Regjistro kontratën"}</button>
+  </form>`);
+  const f=document.getElementById("kform");
+  if(k){
+    f.nr.value=k.no==="—"?"":k.no; f.objekti.value=k.title; f.pale.value=k.party;
+    f.nisja.value=k.start||""; f.skadimi.value=k.end||""; f.vlera.value=k.value??"";
+    f.shenime.value=k.notes;
+  } else addPayRow();
+}
+function addPayRow(){
+  const tb=document.getElementById("payrows"); if(!tb) return;
+  const tr=document.createElement("tr");
+  tr.innerHTML=`<td><input type="date" name="p_due"></td><td><input type="number" name="p_amt" step="0.01" min="0" placeholder="0.00"></td>
+    <td><input name="p_desc" placeholder="p.sh. kësti 1"></td>
+    <td><button type="button" class="pill" onclick="this.closest('tr').remove()">✕</button></td>`;
+  tb.appendChild(tr);
+}
+async function saveContract(e,id){
+  e.preventDefault();
+  const f=e.target;
+  const nr=f.nr.value.trim(), objekti=f.objekti.value.trim();
+  if(!nr) return toast("Plotëso numrin e kontratës.");
+  if(!objekti) return toast("Plotëso objektin e kontratës.");
+  const btn=document.getElementById("ksave"); btn.disabled=true; btn.textContent="Po ruan…";
+  try{
+    if(id){
+      const {error}=await sb.from("contracts").update({
+        contract_no:nr, title:objekti, counterparty:f.pale.value.trim()||null,
+        start_date:f.nisja.value||null, end_date:f.skadimi.value||null,
+        value_num:f.vlera.value?+f.vlera.value:null, notes:f.shenime.value.trim()||null
+      }).eq("id",id);
+      if(error) return toast(error.message);
+      toast("Kontrata u ndryshua"); await refresh(); location.hash="#/kontrata/"+id;
+    } else {
+      let storage_path=null,mime=null,size=null,sha=null,file_name=null;
+      const file=f.skedari.files[0];
+      if(file){
+        const path=`kontrate/${Date.now()}_${file.name.replace(/[^\w.\-]+/g,"_")}`;
+        const up=await sb.storage.from("dokumente").upload(path,file,{contentType:file.type||"application/octet-stream",upsert:false});
+        if(up.error) return toast("Ngarkimi i skedarit dështoi: "+up.error.message);
+        storage_path=path; mime=file.type||null; size=file.size; file_name=file.name; sha=await fileSha(file);
+      }
+      const row={ contract_no:nr, title:objekti, counterparty:f.pale.value.trim()||null,
+        start_date:f.nisja.value||null, end_date:f.skadimi.value||null,
+        value_num:f.vlera.value?+f.vlera.value:null, notes:f.shenime.value.trim()||null,
+        storage_path, file_name, mime, size_bytes:size, sha256:sha||null, created_by:S.session?.user?.id };
+      const ins=await sb.from("contracts").insert(row).select().single();
+      if(ins.error) return toast(ins.error.message);
+      const kid=ins.data.id;
+      const dues=[...f.querySelectorAll('input[name=p_due]')], amts=[...f.querySelectorAll('input[name=p_amt]')], descs=[...f.querySelectorAll('input[name=p_desc]')];
+      const rows=[]; dues.forEach((d,i)=>{ if(d.value&&amts[i].value) rows.push({contract_id:kid,due_date:d.value,amount:+amts[i].value,description:descs[i].value.trim()||null}); });
+      if(rows.length){ const pe=await sb.from("contract_payments").insert(rows); if(pe.error) toast("Pagesat dështuan: "+pe.error.message); }
+      await refresh();
+      toast("Kontrata u regjistrua"); location.hash="#/kontrata/"+kid;
+    }
+  } finally { btn.disabled=false; btn.textContent=id?"Ruaj ndryshimet":"Regjistro kontratën"; }
+}
+async function addPayment(kid){
+  const due=document.getElementById("np-due").value, amt=+document.getElementById("np-amt").value, desc=document.getElementById("np-desc").value.trim();
+  if(!due||!amt) return toast("Plotëso afatin dhe shumën e pagesës.");
+  const {error}=await sb.from("contract_payments").insert({contract_id:kid,due_date:due,amount:amt,description:desc||null});
+  if(error) return toast(error.message);
+  toast("Pagesa u shtua"); await refresh(); contractPage(kid);
+}
+async function markPaid(pid,kid,v){
+  const {error}=await sb.from("contract_payments")
+    .update(v?{paid:true,paid_at:new Date().toISOString().slice(0,10)}:{paid:false,paid_at:null}).eq("id",pid);
+  if(error) return toast(error.message);
+  toast(v?"Pagesa u shënuar paguar":"Pagesa u kthye në të papaguar"); await refresh(); contractPage(kid);
+}
+async function delPayment(pid,kid){
+  if(!confirm("Fshihet pagesa nga orari i kontratës?")) return;
+  const {error}=await sb.from("contract_payments").delete().eq("id",pid);
+  if(error) return toast(error.message);
+  toast("Pagesa u fshi"); await refresh(); contractPage(kid);
+}
+async function deleteContract(id){
+  if(!confirm("Fshihet kontrata? (Rikthim i mundshëm — historiku ruhet.)")) return;
+  const {error}=await sb.from("contracts").update({deleted_at:new Date().toISOString()}).eq("id",id);
+  if(error) return toast(error.message);
+  toast("Kontrata u fshi"); await refresh(); location.hash="#/kontratat";
+}
+async function restoreContract(id){
+  const {error}=await sb.from("contracts").update({deleted_at:null}).eq("id",id);
+  if(error) return toast(error.message);
+  toast("Kontrata u rikthye"); await refresh();
+  if(location.hash==="#/kontrata/"+id) contractPage(id); else location.hash="#/kontrata/"+id;   /* qëndro te faqja e saj, pavarësisht live-sync */
+}
+async function uploadContractFile(id,inp){
+  const f=inp.files[0]; if(!f) return;
+  const path=`kontrate/${Date.now()}_${f.name.replace(/[^\w.\-]+/g,"_")}`;
+  const up=await sb.storage.from("dokumente").upload(path,f,{contentType:f.type||"application/octet-stream",upsert:false});
+  if(up.error) return toast("Ngarkimi dështoi: "+up.error.message);
+  const sha=await fileSha(f);
+  const {error}=await sb.from("contracts").update({storage_path:path,file_name:f.name,mime:f.type||null,size_bytes:f.size,sha256:sha||null}).eq("id",id);
+  if(error) return toast(error.message);
+  toast("Skedari u ngarkua"); await refresh(); contractPage(id);
+}
+async function downloadContract(id){
+  const k=kontrataById(id); if(!k||!k.path) return toast("Kontrata s'ka skedar.");
+  if(!can("shkarko")) return toast("S'ke të drejtën e shkarkimit.");
+  const {data,error}=await sb.storage.from("dokumente").createSignedUrl(k.path,300);
+  if(error||!data) return toast(error?.message||"Gabim në nënshkrimin e linkut.");
+  const a=document.createElement("a"); a.href=data.signedUrl; a.download=k.file||"kontrata"; a.click();
+}
+
 /* ---------- backup (vetëm drejtuesi) ---------- */
 async function downloadBackup(){
   if(!can("backup")) return toast("S'ke të drejtën e backup-it.");
   toast("Po përgatitet backup-i i plotë…");
   const tables=[["cases","*"],["correspondence","*"],["correspondence_links","*"],["activity_log","*"],
-                ["folders","*"],["documents","*"],["profiles","id,full_name,role,active,created_at"]];
+                ["contracts","*"],["contract_payments","*"],
+                ["folders","*"],["documents","*"],["profiles","id,full_name,role,active,perms,created_at"]];
   const out={ project:SUPABASE_URL, site:SITE_URL, exported_at:new Date().toISOString(),
     note:"ARKIVA ELEKTRONIKE · kopje e plotë e të dhënave. Restore: përmes Supabase SQL Editor (upsert) ose nga administratori. Skedarët fizikë mbeten në Storage (bucket 'dokumente')." };
   for(const [t,cols] of tables){
@@ -1190,6 +1473,8 @@ function liveStart(){
     .on("postgres_changes",{event:"*",schema:"public",table:"cases"},livePing)
     .on("postgres_changes",{event:"*",schema:"public",table:"correspondence"},livePing)
     .on("postgres_changes",{event:"*",schema:"public",table:"correspondence_links"},livePing)
+    .on("postgres_changes",{event:"*",schema:"public",table:"contracts"},livePing)
+    .on("postgres_changes",{event:"*",schema:"public",table:"contract_payments"},livePing)
     .on("postgres_changes",{event:"*",schema:"public",table:"activity_log"},livePing)
     .subscribe();
 }
@@ -1223,6 +1508,10 @@ function route(){
   if(path.startsWith("#/gjurmimi")) return logPage();
   if(path.startsWith("#/regjistro")) return registerPage(params);
   if(path.startsWith("#/perdoruesit")) return usersPage();
+  if(path.startsWith("#/kontrata-re")) return contractForm(null);
+  if(path.startsWith("#/kontrata-ndrysho/")) return contractForm(path.split("/")[2]);
+  if(path.startsWith("#/kontrata/")) return contractPage(path.split("/")[2]);
+  if(path.startsWith("#/kontratat")) return contractsPage(params);
   return home();
 }
 window.addEventListener("hashchange",route);
