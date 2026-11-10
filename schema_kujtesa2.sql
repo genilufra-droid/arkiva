@@ -26,8 +26,8 @@ begin
   if coalesce(k,'')='' then
     return jsonb_build_object('gabim','Mungon «brevo_api_key» në public.settings.');
   end if;
-  select coalesce(value,'elektronikearkiva@gmail.com') into snd_e from public.settings where key='brevo_sender_email';
-  select coalesce(value,'Arkiva Elektronike') into snd_n from public.settings where key='brevo_sender_name';
+  select coalesce((select value from public.settings where key='brevo_sender_email'), 'elektronikearkiva@gmail.com') into snd_e;
+  select coalesce((select value from public.settings where key='brevo_sender_name'), 'Arkiva Elektronike') into snd_n;
   select coalesce(jsonb_agg(jsonb_build_object('email', u.email)), '[]'::jsonb) into marrsit
   from public.profiles p join auth.users u on u.id = p.id
   where p.active and u.email_confirmed_at is not null;
@@ -82,7 +82,7 @@ begin
           ||'<ul style="padding-left:18px;line-height:1.8">'||coalesce(lista,'')||'</ul>'
           ||'<p style="margin-top:18px"><a href="https://genilufra-droid.github.io/arkiva/#/kontratat?k=1" style="background:#b91c1c;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none">Hap Kontratat</a></p>'
           ||'</div><p style="color:#999;font-size:11px">Email automatik i Arkivës Elektronike · dërgohen 2 kujtesa për çdo element: 7 ditë dhe 3 ditë para afatit.</p></body></html>'
-      )::text,
+      ),
       headers := jsonb_build_object('api-key', k, 'content-type','application/json', 'accept','application/json')
     );
     if not te_test then
@@ -106,7 +106,7 @@ begin
     for r in select p.phone from public.profiles p where p.active and coalesce(p.phone,'')<>'' loop
       perform net.http_post(
         url := 'https://api.brevo.com/v3/transactionalSMS/sms',
-        body := jsonb_build_object('sender','Arkiva','recipient',r.phone,'content',sms_text)::text,
+        body := jsonb_build_object('sender','Arkiva','recipient',r.phone,'content',sms_text),
         headers := jsonb_build_object('api-key', k, 'content-type','application/json', 'accept','application/json')
       );
     end loop;
