@@ -33,6 +33,18 @@ button,input,select{font:inherit}
 .sbox input{flex:1;background:transparent;border:0;color:#fff;font-size:16px;outline:none}
 .sbox input::placeholder{color:rgba(255,255,255,.85)}
 .adv{margin-top:20px;display:inline-flex;gap:8px;align-items:center;color:#fff;font-weight:600;cursor:pointer}
+/* kërkimi i avancuar */
+.aswrap{display:grid;grid-template-columns:320px 1fr;gap:18px;align-items:start;padding:16px 22px}
+@media(max-width:900px){.aswrap{grid-template-columns:1fr;padding:12px}}
+.ascard{border:1px solid var(--line);border-radius:12px;background:#fff;padding:18px 18px 14px;position:sticky;top:12px}
+.ascard h2{margin:0;padding-bottom:12px;border-bottom:1px solid var(--line);font-size:17px}
+.assec{font-size:11px;letter-spacing:.8px;color:var(--muted);text-transform:uppercase;font-weight:700;margin:15px 0 6px}
+.ascard .fld input,.ascard .fld select{height:36px}
+.asck{display:flex;align-items:center;gap:9px;padding:6px 0;font-weight:600;cursor:pointer}
+.asck input{width:16px;height:16px;accent-color:var(--red);cursor:pointer;flex:none}
+.asdates{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.asbtns{display:flex;gap:10px;margin-top:20px}
+.asbtns .btn{margin:0;flex:1;padding:11px 8px}
 
 /* layout */
 .wrap{display:grid;grid-template-columns:300px 1fr;gap:18px;padding:22px;max-width:1500px;margin:-26px auto 0;position:relative}
@@ -539,7 +551,7 @@ function home(){
         <form class="sbox" onsubmit="event.preventDefault();location.hash='#/dosjet?q='+encodeURIComponent(this.q.value)">
           ${ico.search}<input name="q" placeholder="Kërko numër protokolli, p.sh. H-2026-0001" autocomplete="off"></form></div>
     </div>
-    <div class="adv" onclick="location.hash='#/dosjet?q='">${ico.search} Kërkim i avancuar</div>
+    <div class="adv" onclick="location.hash='#/kerko'">${ico.search} Kërkim i avancuar</div>
   </section>
   <section class="wrap">${sidebar("home")}<div class="main">
     <div class="crumbs"><a href="#/">${ico.home}</a><span class="sep">›</span><span>Kryefaqja</span></div>
@@ -586,6 +598,119 @@ function casesPage(params){
       <a href="#/dosjet?s=hapur" class="pill ${s==="hapur"?"on":""}">Të hapura</a>
       <a href="#/dosjet?s=mbyllur" class="pill ${s==="mbyllur"?"on":""}">Të mbyllura</a></div>
      ${caseTable(list)}`);
+}
+
+/* ---------- kërkimi i avancuar ---------- */
+function applySearch(e){
+  e.preventDefault();
+  const f=e.target, p=new URLSearchParams();
+  if(!f.querySelectorAll('input[name=ku]:checked').length){ toast("Zgjidhni ku të kërkohet: Dosjet, Dokumentet ose Kontratat."); return; }
+  [...f.querySelectorAll('input[name=ku]:checked')].forEach(x=>p.append("ku",x.value));
+  if(f.fjale.value.trim()) p.set("fjale",f.fjale.value.trim());
+  if(f.lenda.value.trim()) p.set("lenda",f.lenda.value.trim());
+  if(f.lloji.value) p.set("lloji",f.lloji.value);
+  if(f.nga.value) p.set("nga",f.nga.value);
+  if(f.deri.value) p.set("deri",f.deri.value);
+  location.hash = "#/kerko"+(p.toString()?"?"+p.toString():"");
+}
+function searchPage(params){
+  const kuRaw = params.getAll("ku");
+  const ku = kuRaw.length ? kuRaw : ["dosje","dok","kon"];
+  const fj = (params.get("fjale")||"").trim().toLowerCase();
+  const te = (params.get("lenda")||"").trim().toLowerCase();
+  const ll = params.get("lloji")||"";
+  const llDir = ll==="hyrje"||ll==="dalje";
+  const nga = params.get("nga")||"", deri = params.get("deri")||"";
+  const fjWords = fj ? fj.split(/\s+/).filter(Boolean) : [];
+  const hasCriteria = fjWords.length>0 || !!te || !!ll || !!nga || !!deri;
+  const dnum = s => { if(!s) return null; let m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(s)); if(m) return +(m[1]+m[2]+m[3]);
+    m=/(\d{2})\/(\d{2})\/(\d{4})/.exec(String(s)); return m? +(m[3]+m[2]+m[1]) : null; };
+  const nNga=dnum(nga), nDeri=dnum(deri), hasRange = nNga!=null||nDeri!=null;
+  const inRange = s => { const n=dnum(s); if(n==null) return false;
+    if(nNga!=null&&n<nNga) return false; if(nDeri!=null&&n>nDeri) return false; return true; };
+  const hit = (hay,ws) => ws.every(w=>hay.includes(w));
+
+  let dos=[], dok=[], kon=[];
+  if(ku.includes("dosje")) dos = S.data.cases.filter(c=>{
+    const ds=docsOf(c.id);
+    if(ll){ if(llDir){ if(!ds.some(x=>x.dir===ll)) return false; } else if(!ds.some(x=>x.kind===ll)) return false; }
+    const cHay=(c.title+" "+c.no+" "+c.subject+" "+c.loc).toLowerCase();
+    const dHay=ds.map(x=>x.proto+" "+x.subject+" "+x.from).join(" ; ").toLowerCase();
+    if(te && !(cHay+" "+dHay).includes(te)) return false;
+    if(fjWords.length && !hit(cHay+" "+dHay+" "+ds.map(x=>x.ocr||"").join(" ; ").toLowerCase(), fjWords)) return false;
+    if(hasRange && !ds.some(x=>inRange(x.date))) return false;
+    return true;
+  });
+  if(ku.includes("dok")) dok = S.data.docs.filter(d=>{
+    if(d.deleted) return false;
+    if(ll){ if(llDir){ if(d.dir!==ll) return false; } else if(d.kind!==ll) return false; }
+    if(te && !((d.proto+" "+d.subject+" "+d.from).toLowerCase().includes(te))) return false;
+    if(fjWords.length && !hit((d.proto+" "+d.subject+" "+d.from+" "+(d.ocr||"")).toLowerCase(), fjWords)) return false;
+    if(hasRange && !inRange(d.date)) return false;
+    return true;
+  }).sort((a,b)=>(dnum(b.date)||0)-(dnum(a.date)||0));
+  if(ku.includes("kon")) kon = S.data.contracts.filter(k=>{
+    if(k.deleted) return false;
+    const hay=(k.no+" "+k.title+" "+k.party+" "+(k.notes||"")).toLowerCase();
+    if(te && !hay.includes(te)) return false;
+    if(fjWords.length && !hit(hay,fjWords)) return false;
+    if(hasRange && !inRange(k.start)) return false;
+    return true;
+  });
+
+  const CAP=100, more=n=>n>CAP?`<div class="empty" style="padding:8px 14px">… edhe ${n-CAP} të tjera — konkretizo kërkimin.</div>`:"";
+  let res="";
+  if(!ku.length) res = `<div class="empty">Zgjidhni ku të kërkohet: Dosjet, Dokumentet ose Kontratat.</div>`;
+  else{
+    if(ku.includes("dosje")) res += `<div class="toolbar"><h2>Dosjet (${dos.length})</h2></div>${caseTable(dos.slice(0,CAP))}${more(dos.length)}`;
+    if(ku.includes("dok")) res += `<div class="toolbar"><h2>Dokumentet (${dok.length})</h2></div>` +
+      (dok.length? `<table class="tbl"><thead><tr><th>Protokolli</th><th>Lloji</th><th>Lënda</th><th>Dosja</th><th>Data</th></tr></thead><tbody>
+      ${dok.slice(0,CAP).map(d=>{const c=caseOf(d.case)||{};return `<tr><td><a href="#/dokument/${d.id}" class="t">${esc(d.proto)}</a><div class="sub">#${d.idx||"—"} në dosje</div></td>
+        <td><span class="tag ${d.dir==="hyrje"?"in":"out"}">${d.dir==="hyrje"?"Hyrje":"Dalje"}</span><div class="sub">${esc(d.kind)}</div></td>
+        <td>${esc(d.subject)}<div class="sub">${esc(d.from)}</div></td>
+        <td>${esc(c.no||"—")}</td><td>${d.date}</td></tr>`;}).join("")}</tbody></table>`
+        :`<div class="empty">Asnjë dokument nuk përputhet me kërkimin.</div>`)+more(dok.length);
+    if(ku.includes("kon")) res += `<div class="toolbar"><h2>Kontratat (${kon.length})</h2></div>${contractTable(kon.slice(0,CAP))}${more(kon.length)}`;
+    if(hasCriteria && !dos.length && !dok.length && !kon.length)
+      res = `<div class="empty" style="margin:0 0 8px">Asnjë rezultat për këto kritere — provo të zgjerosësh kërkimin.</div>`+res;
+  }
+
+  const ck=v=>ku.includes(v)?"checked":"";
+  shellRender("kerko",[{t:"Arkiva",h:"#/"},{t:"Kërkim i avancuar"}],
+  `<div class="aswrap">
+    <form id="srcf" class="ascard" onsubmit="applySearch(event)">
+      <h2>Kërko në arkivë</h2>
+      <div class="assec">Ku të kërkohet</div>
+      <label class="asck"><input type="checkbox" name="ku" value="dosje" ${ck("dosje")}> Dosjet</label>
+      <label class="asck"><input type="checkbox" name="ku" value="dok" ${ck("dok")}> Dokumentet</label>
+      <label class="asck"><input type="checkbox" name="ku" value="kon" ${ck("kon")}> Kontratat</label>
+      <div class="assec">Fjalë kyçe</div>
+      <div class="fld"><input name="fjale" value="${esc(params.get("fjale")||"")}" placeholder="Kërkohet në lëndë, palë dhe tekstin e skanuar" autocomplete="off"></div>
+      <div class="assec">Lënda, numri ose palët</div>
+      <div class="fld"><input name="lenda" value="${esc(params.get("lenda")||"")}" placeholder="p.sh. H-2026-0001, bashki…" autocomplete="off"></div>
+      <div class="assec">Lloji i dokumentit</div>
+      <div class="fld"><select name="lloji">
+        <option value="">Të gjitha</option>
+        <option value="hyrje" ${ll==="hyrje"?"selected":""}>Hyrje (H)</option>
+        <option value="dalje" ${ll==="dalje"?"selected":""}>Dalje (D)</option>
+        <option value="kërkesë" ${ll==="kërkesë"?"selected":""}>Kërkesë</option>
+        <option value="shkresë" ${ll==="shkresë"?"selected":""}>Shkresë</option>
+        <option value="përgjigje" ${ll==="përgjigje"?"selected":""}>Përgjigje</option>
+        <option value="fletë" ${ll==="fletë"?"selected":""}>Fletë</option>
+        <option value="kontratë" ${ll==="kontratë"?"selected":""}>Kontratë (dokument)</option>
+      </select></div>
+      <div class="assec">Data e dokumentit</div>
+      <div class="asdates">
+        <div class="fld"><label>Nga</label><input type="date" name="nga" value="${esc(nga)}"></div>
+        <div class="fld"><label>Deri</label><input type="date" name="deri" value="${esc(deri)}"></div>
+      </div>
+      <div class="asbtns">
+        <button type="button" class="btn line" onclick="document.getElementById('srcf').reset();location.hash='#/kerko'">Pastro</button>
+        <button type="submit" class="btn red">Apliko</button>
+      </div>
+    </form>
+    <div class="asres">${res}</div>
+  </div>`);
 }
 
 function casePage(id){
@@ -1477,7 +1602,7 @@ function livePing(){
   clearTimeout(liveT);
   liveT=setTimeout(async()=>{
     /* mos i prish format që po plotësohen */
-    if(document.getElementById("regf") || document.getElementById("editf")) return;
+    if(document.getElementById("regf") || document.getElementById("editf") || document.getElementById("srcf")) return;
     if(!S.session || !S.profile || !S.profile.active) return;
     await refresh();
     route();
@@ -1497,6 +1622,7 @@ function route(){
   if(path.startsWith("#/ndrysho/")) return editDoc(path.split("/")[2]);
   if(path.startsWith("#/dosjet")) return casesPage(params);
   if(path.startsWith("#/kerkesat")) return requestsPage(params);
+  if(path.startsWith("#/kerko")) return searchPage(params);
   if(path.startsWith("#/gjurmimi")) return logPage();
   if(path.startsWith("#/regjistro")) return registerPage(params);
   if(path.startsWith("#/perdoruesit")) return usersPage();
