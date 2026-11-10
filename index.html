@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Arkiva · Protokolli dhe dosjet</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
 :root{--red:#b3141b;--red2:#8a0d13;--red3:#d8232a;--ink:#1d1d1f;--muted:#6e6e73;--line:#e5e5ea;--bg:#f5f5f7;--ok:#1f7a3d;--okbg:#e6f4ea;--warn:#8a5a00;--warnbg:#fff4df;--bad:#a4161a;--badbg:#fdeaea}
 *{box-sizing:border-box}
@@ -528,8 +529,8 @@ function sidebar(active){
     <a href="#/kerkesat" class="${active==="req"?"on":""}">${ico.alert}Kërkesa pa përgjigje<span class="n">${reqs}</span></a>
     <a href="#/kerkesat?vonuar=1" class="${active==="late"?"on":""}">${ico.alert}Afate të kaluara<span class="n">${late}</span></a>
     ${can("perdoruesit") ? `<a href="#/perdoruesit" class="${active==="usr"?"on":""}">${ico.users}Përdoruesit</a>` : ""}
-    ${can("backup") ? `<a href="javascript:void 0" onclick="downloadBackup()" title="Eksporto të gjitha të dhënat në një skedar JSON">${ico.dlb}Shkarko backup</a>` : ""}
-    ${can("backup") ? `<a href="javascript:void 0" onclick="restoreBackup()" title="Riktho të dhënat nga një skedar backup (rreshtat ekzistues përditësohen, mos dyfishohen)">↩ Restore nga backup</a>` : ""}
+    ${can("backup") ? `<a href="javascript:void 0" onclick="downloadBackup()" title="Eksporto të gjitha të dhënat dhe skedarët në një skedar ZIP">${ico.dlb}Shkarko backup</a>` : ""}
+    ${can("backup") ? `<a href="javascript:void 0" onclick="restoreBackup()" title="Riktho të dhënat dhe skedarët nga një backup ZIP ose JSON (rreshtat ekzistues përditësohen, mos dyfishohen)">↩ Restore nga backup</a>` : ""}
     ${can("perdoruesit") ? `<a href="javascript:void 0" onclick="resetArkiva()" title="Fshi gjithçka dhe kthe arkivën në gjendjen fillestare (kërkon backup + konfirmim me shkrim)">⟲ Reset i plotë…</a>` : ""}
     ${can("gjurmimi") ? `<div class="sec">Lidhje</div>
     <a href="#/gjurmimi" class="${active==="log"?"on":""}">${ico.book}Gjurmimi i ndryshimeve</a>` : ""}
@@ -1607,42 +1608,90 @@ async function downloadContract(id){
   const a=document.createElement("a"); a.href=data.signedUrl; a.download=k.file||"kontrata"; a.click();
 }
 
-/* ---------- backup (vetëm drejtuesi) ---------- */
+/* ---------- backup i plotë: ZIP me të dhëna + skedarë (vetëm drejtuesi) ---------- */
 async function downloadBackup(){
   if(!can("backup")) return toast("S'ke të drejtën e backup-it.");
+  if(typeof JSZip==="undefined") return toast("Libraria ZIP s'u ngarkua — kontrollo internetin dhe rifresko faqen.");
   toast("Po përgatitet backup-i i plotë…");
   const tables=[["cases","*"],["correspondence","*"],["correspondence_links","*"],["activity_log","*"],
                 ["contracts","*"],["contract_payments","*"],
                 ["folders","*"],["documents","*"],["profiles","id,full_name,role,active,perms,created_at"]];
   const out={ project:SUPABASE_URL, site:SITE_URL, exported_at:new Date().toISOString(),
-    note:"ARKIVA ELEKTRONIKE · kopje e plotë e të dhënave. Restore: përmes Supabase SQL Editor (upsert) ose nga administratori. Skedarët fizikë mbeten në Storage (bucket 'dokumente')." };
+    note:"ARKIVA ELEKTRONIKE · kopje e plotë: të dhënat në këtë skedar (arkiva.json) dhe skedarët fizikë në dosjen files/ të ZIP-it. Rikthimi: butoni «Restore nga backup» në site." };
   for(const [t,cols] of tables){
     const {data,error} = await sb.from(t).select(cols);
     if(error){ toast(`Backup · ${t}: ${error.message}`); continue; }
     out[t]=data;
   }
+  const paths=[];
+  const listo=async pre=>{
+    const {data,error}=await sb.storage.from("dokumente").list(pre||"", {limit:1000});
+    if(error||!data||!data.length) return;
+    for(const it of data){
+      const p=pre?pre+"/"+it.name:it.name;
+      if(it.id) paths.push(p); else await listo(p);
+    }
+  };
+  await listo("");
+  const zip=new JSZip();
+  zip.file("arkiva.json", JSON.stringify(out,null,2));
+  let nf=0;
+  for(const p of paths){
+    const {data,error}=await sb.storage.from("dokumente").download(p);
+    if(!error&&data){ zip.file("files/"+p, data); nf++; }
+  }
+  const blob=await zip.generateAsync({type:"blob",compression:"DEFLATE",compressionOptions:{level:6}});
   const a=document.createElement("a");
-  a.href=URL.createObjectURL(new Blob([JSON.stringify(out,null,2)],{type:"application/json"}));
-  a.download=`arkiva-backup-${new Date().toISOString().slice(0,16).replace(/[:T]/g,"-")}.json`;
+  a.href=URL.createObjectURL(blob);
+  a.download=`arkiva-backup-${new Date().toISOString().slice(0,16).replace(/[:T]/g,"-")}.zip`;
   a.click();
-  toast("Backup-i u shkarkua në kompjuterin tuaj");
+  toast(`Backup-i i plotë u shkarkua (${nf} skedarë brenda)`);
 }
 
-/* ---------- restore nga backup (vetëm drejtuesi) ---------- */
+/* ---------- restore nga backup ZIP (me skedarë) ose JSON (vetëm të dhëna) ---------- */
+const MIME_NGA_EXT={pdf:"application/pdf",png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",gif:"image/gif",webp:"image/webp",doc:"application/msword",docx:"application/vnd.openxmlformats-officedocument.wordprocessingml.document",xls:"application/vnd.ms-excel",xlsx:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",txt:"text/plain",csv:"text/csv"};
 function restoreBackup(){
   if(!can("backup")) return toast("S'ke të drejtën e restore.");
-  const inp=document.createElement("input"); inp.type="file"; inp.accept=".json,application/json";
+  const inp=document.createElement("input"); inp.type="file"; inp.accept=".json,.zip,application/json,application/zip";
   inp.onchange=async()=>{
     try{
-      const payload=JSON.parse(await inp.files[0].text());
+      const f=inp.files[0];
+      const emri=(f.name||"").toLowerCase();
+      const magjia=await f.slice(0,2).text();
+      let payload=null, zip=null;
+      if(emri.endsWith(".zip")||magjia==="PK"){
+        if(typeof JSZip==="undefined") return toast("Libraria ZIP s'u ngarkua — kontrollo internetin dhe rifresko faqen.");
+        zip=await JSZip.loadAsync(f);
+        const j=zip.file("arkiva.json");
+        if(!j) return toast("ZIP-i s'përmban «arkiva.json» — s'është backup i Arkivës.");
+        payload=JSON.parse(await j.async("string"));
+      } else {
+        payload=JSON.parse(await f.text());
+      }
       if(!payload || !payload.note || !payload.exported_at) return toast("Skedari s'është backup i Arkivës Elektronike.");
       const N=t=>Array.isArray(payload[t])?payload[t].length:0;
+      const nf=zip?Object.keys(zip.files).filter(k=>k.startsWith("files/")&&!zip.files[k].dir).length:0;
       const dataB=new Date(payload.exported_at).toLocaleString("sq-AL");
-      if(!confirm(`Rikthim nga backup-i i ${dataB}\n\nDosje: ${N("cases")} · Dokumente: ${N("correspondence")} · Kontrata: ${N("contracts")} · Pagesa: ${N("contract_payments")} · Historik: ${N("activity_log")}\n\nRreshtat ekzistues me të njëjtin ID përditësohen (mos dyfishohen). Skedarët fizikë mbeten në ruajtëse. Vazhdo?`)) return;
+      const rreshta=`Dosje: ${N("cases")} · Dokumente: ${N("correspondence")} · Kontrata: ${N("contracts")} · Pagesa: ${N("contract_payments")} · Historik: ${N("activity_log")}${nf?` · Skedarë: ${nf}`:""}`;
+      if(!confirm(`Rikthim nga backup-i i ${dataB}\n\n${rreshta}\n\nRreshtat ekzistues me të njëjtin ID përditësohen (mos dyfishohen).${nf?" Skedarët rikthehen në ruajtëse.":""} Vazhdo?`)) return;
       toast("Po rikthehen të dhënat…");
       const {error}=await sb.rpc("restore_arkiva",{payload});
       if(error) return toast("Restore: "+error.message);
-      toast("Të dhënat u rikthyen nga backup-i ✓");
+      if(zip&&nf>0){
+        let ok=0, gabim="";
+        for(const k of Object.keys(zip.files)){
+          if(!k.startsWith("files/")||zip.files[k].dir) continue;
+          const p=k.slice(6);
+          const ext=(p.match(/\.([a-z0-9]+)$/i)||[])[1];
+          const ct=(ext&&MIME_NGA_EXT[ext.toLowerCase()])||"application/octet-stream";
+          const blob=new Blob([await zip.files[k].async("arraybuffer")],{type:ct});
+          const {error:e2}=await sb.storage.from("dokumente").upload(p, blob, {upsert:true, contentType:ct});
+          if(!e2) ok++; else gabim=p+": "+e2.message;
+        }
+        toast(gabim?`Disa skedarë s'u rikthyen (${gabim})`:`Të dhënat u rikthyen nga backup-i ✓ (+${ok} skedarë)`);
+      } else {
+        toast("Të dhënat u rikthyen nga backup-i ✓");
+      }
       await refresh(); route();
     }catch(e){ toast("Skedar i palexueshëm: "+e.message); }
   };
