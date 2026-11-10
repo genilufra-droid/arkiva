@@ -1397,58 +1397,86 @@ function contractPage(id){
   const total=k.pays.reduce((s,p)=>s+p.amt,0);
   const hist=S.data.log.filter(l=>l.cref===k.id);
   const t0=new Date(); t0.setHours(0,0,0,0);
+  const isPdf = k.mime==="application/pdf" || /\.pdf$/i.test(k.file||"");
+  /* ---- viewer: skedari i skanuar (si QBZ) ose parapamja e regjistrit ---- */
+  const viewerHtml = k.path
+    ? `<div class="vbar"><span>${esc(k.file)}</span>${k.sha?`<span class="vhash">${esc(k.sha.slice(0,12))}…</span>`:""}<span class="sp"></span><span>${k.size}</span></div>
+       <div class="pdfwrap" id="pdfbox"><span style="color:var(--muted)">Po hapet dokumenti…</span></div>`
+    : `<div class="vbar"><span>pa skedar — parapamje regjistri</span><span class="sp"></span>
+        <button onclick="zoom(-10)">−</button><span id="zv">100%</span><button onclick="zoom(10)">+</button></div>
+      <div id="paperwrap"><div class="paper" id="paper" style="zoom:1">
+        <div class="hd"><b>REGJISTRI I KONTRATËS</b><br><small>Nr. ${esc(k.no)} · ${k.startD||"—"} → ${k.endD||"pa afat"}</small><br><small>Palët: ${esc(k.party||"—")}</small></div>
+        <div class="meta"><span>Objekti: ${esc(k.title)}</span><span>Vlera: ${fmtLek(k.value)}</span></div>
+        <p><b>Pagesat:</b> ${paguar} nga ${k.pays.length} · totali ${fmtLek(total)}</p>
+        ${k.notes?`<p><b>Shënime:</b> ${esc(k.notes)}</p>`:`<div class="ln"></div><div class="ln" style="width:70%"></div><div class="ln" style="width:85%"></div>`}
+        <div style="margin-top:30px;font-size:11px;color:#777">${k.path?esc(k.file)+" · "+k.size:"pa skedar të ngarkuar"}</div>
+      </div></div>`;
   shellRender("",[{t:"Arkiva",h:"#/"},{t:"Kontratat",h:"#/kontratat"},{t:k.no}],
-  `<div class="toolbar"><h2>${esc(k.no)} · ${esc(k.title)}</h2>
-    <span style="flex:1"></span>
-    ${!k.deleted&&can("ndrysho")?`<a href="#/kontrata-ndrysho/${k.id}" class="pill">✎ Modifiko</a>`:""}
-    ${can("fshi")?(k.deleted?`<button class="pill" onclick="restoreContract('${k.id}')">↩ Rikthe</button>`:`<button class="pill" style="color:var(--bad)" onclick="deleteContract('${k.id}')">✕ Fshij</button>`):""}
-  </div>
-  ${k.deleted?`<div class="notice bad" style="margin:0 22px 14px">🗑 KONTRATA E FSHIRË — ruhet në gjurmim dhe mund të rikthehet.</div>`:""}
-  <div class="box"><div class="hl">Të dhënat</div>
-    <dl class="kv">
-      <dt>Objekti</dt><dd>${esc(k.title)}</dd>
-      <dt>Palët</dt><dd>${esc(k.party||"—")}</dd>
-      <dt>Nr. i kontratës</dt><dd>${esc(k.no)}</dd>
-      <dt>Nisja</dt><dd>${k.startD}</dd>
-      <dt>Skadimi</dt><dd>${k.endD}${st.d!=null?` <span class="tag ${st.cls}">${st.t}${st.d>=0?` · ${st.d} d`:""}</span>`:""}</dd>
-      <dt>Vlera</dt><dd>${fmtLek(k.value)}</dd>
-      ${k.notes?`<dt>Shënime</dt><dd>${esc(k.notes)}</dd>`:""}
-      <dt>Krijuar më</dt><dd>${k.created}</dd>
-    </dl>
-    <div class="hl" style="margin-top:16px">Skedari i skanuar</div>
-    ${k.path?`
-      <div><b>${esc(k.file)}</b> <span class="sub">· ${k.size}</span>
-        ${can("shkarko")?`<button class="pill" onclick="downloadContract('${k.id}')">⤓ Shkarko</button>`:""}</div>
-      ${k.sha?`<div class="hash" style="margin-top:8px">${esc(k.sha)}</div>`:""}
-      ${!k.deleted&&can("ndrysho")?`<label class="btn line" style="margin-top:8px">↻ Zëvendëso skedarin<input type="file" hidden onchange="uploadContractFile('${k.id}',this)"></label>`:""}`
-    :(!k.deleted&&can("ndrysho")?`<label class="btn line">⤒ Ngarko skedarin e skanuar<input type="file" hidden onchange="uploadContractFile('${k.id}',this)"></label>`
-      :`<div class="sub" style="color:var(--muted)">Pa skedar të ngarkuar.</div>`)}
-  </div>
-  <div class="box"><div class="hl">Pagesat — paguar ${paguar} nga ${k.pays.length} · totali ${fmtLek(total)}</div>
-    <table class="tbl"><thead><tr><th>Afati</th><th>Shuma</th><th>Përshkrimi</th><th>Gjendja</th><th></th></tr></thead><tbody>
-    ${k.pays.length? k.pays.map(p=>{
-      const d=Math.round((new Date(p.due+"T00:00:00")-t0)/864e5);
-      const gj = p.paid? `<span class="tag closed">Paguar${p.paidD?` më ${p.paidD}`:""}</span>`
-        : d<0? `<span class="tag late">Me vonesë · ${-d} d</span>`
-        : d<=7? `<span class="tag open">Afër · pas ${d} d</span>`
-        : `<span class="tag out">Paditur</span>`;
-      return `<tr><td class="t">${p.dueD}</td><td class="t">${fmtLek(p.amt)}</td><td>${esc(p.desc||"—")}</td><td>${gj}</td>
-        <td style="white-space:nowrap">
-        ${!p.paid&&!k.deleted&&can("ndrysho")?`<button class="pill" onclick="markPaid('${p.id}','${k.id}',1)">✓ Paguar</button>`:""}
-        ${p.paid&&can("ndrysho")?`<button class="pill" onclick="markPaid('${p.id}','${k.id}',0)">↩ Hap</button>`:""}
-        ${can("fshi")?`<button class="pill" style="color:var(--bad)" onclick="delPayment('${p.id}','${k.id}')">✕</button>`:""}</td></tr>`;
-    }).join("") : `<tr><td colspan="5" class="sub" style="color:var(--muted)">Asnjë pagesë e regjistruar.</td></tr>`}
-    </tbody></table>
-    ${!k.deleted&&can("regjistro")?`<div style="display:grid;grid-template-columns:150px 150px 1fr auto;gap:8px;margin-top:12px;max-width:760px">
-      <input type="date" id="np-due" title="Afati i pagesës"><input type="number" id="np-amt" step="0.01" min="0" placeholder="Shuma (LEK)">
-      <input id="np-desc" placeholder="Përshkrimi (p.sh. kësti 1)">
-      <button class="btn line" style="width:auto;margin:0;padding:9px 16px" onclick="addPayment('${k.id}')">＋ Shto</button></div>`:""}
-  </div>
-  ${hist.length?`<div class="box"><div class="hl">Historiku i ndryshimeve</div>
-    <ul class="rel" style="border:0">
-    ${hist.map(h=>`<li><span class="dot"></span><div><b>${esc(h.act)}</b>
-      <div class="sm">${esc(h.ts)} · ${esc(h.user)}</div>${h.detail?`<div class="sm">${esc(h.detail)}</div>`:""}</div></li>`).join("")}
-    </ul></div>`:""}`);
+  `<div class="docwrap">
+    <div class="viewer">
+      ${viewerHtml}
+      <div class="vbelow">
+        <div class="hl" style="text-align:center;margin-bottom:6px">PËRMBAJTJA</div>
+        <p class="sm" style="text-align:center;color:var(--muted);margin:0 0 12px">Pagesat — paguar ${paguar} nga ${k.pays.length} · totali ${fmtLek(total)}</p>
+        <table class="tbl"><thead><tr><th>Afati</th><th>Shuma</th><th>Përshkrimi</th><th>Gjendja</th><th></th></tr></thead><tbody>
+        ${k.pays.length? k.pays.map(p=>{
+          const d=Math.round((new Date(p.due+"T00:00:00")-t0)/864e5);
+          const gj = p.paid? `<span class="tag closed">Paguar${p.paidD?` më ${p.paidD}`:""}</span>`
+            : d<0? `<span class="tag late">Me vonesë · ${-d} d</span>`
+            : d<=7? `<span class="tag open">Afër · pas ${d} d</span>`
+            : `<span class="tag out">Paditur</span>`;
+          return `<tr><td class="t">${p.dueD}</td><td class="t">${fmtLek(p.amt)}</td><td>${esc(p.desc||"—")}</td><td>${gj}</td>
+            <td style="white-space:nowrap">
+            ${!p.paid&&!k.deleted&&can("ndrysho")?`<button class="pill" onclick="markPaid('${p.id}','${k.id}',1)">✓ Paguar</button>`:""}
+            ${p.paid&&can("ndrysho")?`<button class="pill" onclick="markPaid('${p.id}','${k.id}',0)">↩ Hap</button>`:""}
+            ${can("fshi")?`<button class="pill" style="color:var(--bad)" onclick="delPayment('${p.id}','${k.id}')">✕</button>`:""}</td></tr>`;
+        }).join("") : `<tr><td colspan="5" class="sub" style="color:var(--muted)">Asnjë pagesë e regjistruar.</td></tr>`}
+        </tbody></table>
+        ${!k.deleted&&can("regjistro")?`<div style="display:grid;grid-template-columns:150px 150px 1fr auto;gap:8px;margin-top:12px;max-width:760px">
+          <input type="date" id="np-due" title="Afati i pagesës"><input type="number" id="np-amt" step="0.01" min="0" placeholder="Shuma (LEK)">
+          <input id="np-desc" placeholder="Përshkrimi (p.sh. kësti 1)">
+          <button class="btn line" style="width:auto;margin:0;padding:9px 16px" onclick="addPayment('${k.id}')">＋ Shto</button></div>`:""}
+        ${hist.length?`<div class="hl" style="text-align:center;margin-top:20px;margin-bottom:10px">HISTORIKU I KONTRATËS</div>
+        <ul class="rel" style="border:0">
+        ${hist.map(h=>`<li><span class="dot"></span><div><b>${esc(h.act)}</b>
+          <div class="sm">${esc(h.ts)} · ${esc(h.user)}</div>${h.detail?`<div class="sm">${esc(h.detail)}</div>`:""}</div></li>`).join("")}
+        </ul>`:""}
+      </div>
+    </div>
+    <div class="info">
+      <h1 class="qt">${esc(k.no)}</h1>
+      <dl class="kv">
+        <dt>Nr.</dt><dd>${esc(k.no)}</dd>
+        <dt>Datë</dt><dd>${k.startD||"—"}<div class="sub">nisja e kontratës</div></dd>
+        <dt>Titulli</dt><dd>${esc(k.title)}</dd>
+        <dt>Palët</dt><dd>${esc(k.party||"—")}</dd>
+        <dt>Skadimi</dt><dd>${k.endD||"—"}${st.d!=null?` <span class="tag ${st.cls}">${st.t}${st.d>=0?` · ${st.d} d`:""}</span>`:""}</dd>
+        <dt>Vlera</dt><dd>${fmtLek(k.value)}</dd>
+        ${k.notes?`<dt>Shënime</dt><dd>${esc(k.notes)}</dd>`:""}
+        <dt>Krijuar më</dt><dd>${k.created}</dd>
+      </dl>
+      ${k.deleted
+        ? `<div class="notice bad" style="margin-bottom:14px">🗑 KONTRATA E FSHIRË — ruhet në gjurmim.${can("fshi")?` <button class="pill" onclick="restoreContract('${k.id}')">↩ Rikthe</button>`:""}</div>`
+        : `
+      ${can("shkarko")&&k.path?`<button class="btn red" onclick="downloadContract('${k.id}')">${ico.dl} ${isPdf?"Shkarko PDF":"Shkarko skedarin"} (${k.size})</button>`:""}
+      ${k.sha?`<div class="hl" style="margin-top:14px">SHA-256 (për të verifikuar që dokumenti nuk është ndryshuar)</div><div class="hash">${esc(k.sha)}</div>`:""}
+      ${can("ndrysho")?`<a class="btn line" href="#/kontrata-ndrysho/${k.id}" style="text-decoration:none">✎ Modifiko</a>
+      ${k.path?`<label class="btn line">↻ Zëvendëso skedarin<input type="file" hidden onchange="uploadContractFile('${k.id}',this)"></label>`
+                :`<label class="btn line">⤒ Ngarko skedarin e skanuar<input type="file" hidden onchange="uploadContractFile('${k.id}',this)"></label>`}`:""}
+      ${can("fshi")?`<button class="btn line" style="color:var(--bad);border-color:var(--bad)" onclick="deleteContract('${k.id}')">✕ Fshij</button>`:""}`}
+    </div>
+  </div>`);
+  if(k.path) embedKontrata(k.id);
+}
+async function embedKontrata(id){
+  const k=kontrataById(id); const box=document.getElementById("pdfbox"); if(!k||!box||!k.path) return;
+  if(!can("shkarko")){ box.innerHTML=`<span style="color:var(--muted)">S'ke të drejtën e hapjes së skedarëve.</span>`; return; }
+  const {data,error}=await sb.storage.from("dokumente").createSignedUrl(k.path,3600);
+  if(error || !data){ box.innerHTML=`<span style="color:var(--muted)">S'hapet: ${esc(error?.message||"gabim i panjohur")}</span>`; return; }
+  if(k.mime && k.mime.startsWith("image/"))
+    box.innerHTML=`<img src="${data.signedUrl}" alt="kontrata" style="max-width:94%;max-height:94%;object-fit:contain;box-shadow:0 8px 24px rgba(0,0,0,.25);border-radius:4px">`;
+  else
+    box.innerHTML=`<iframe src="${data.signedUrl}#toolbar=1&navpanes=0&view=FitH" style="width:100%;height:100%;border:0" title="${esc(k.no)}"></iframe>`;
 }
 function contractForm(id){
   const k=id?kontrataById(id):null;
