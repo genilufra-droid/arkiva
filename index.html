@@ -819,10 +819,20 @@ function requestsPage(params){
 function logPage(){
   if(!can("gjurmimi")) return notFound();
   shellRender("log",[{t:"Arkiva",h:"#/"},{t:"Gjurmimi"}],
-  `<div class="toolbar"><h2>Gjurmimi i ndryshimeve</h2></div>
+  `<div class="toolbar"><h2>Gjurmimi i ndryshimeve</h2>
+     ${can("perdoruesit")?`<button class="btn line" style="width:auto;margin:0;padding:10px 16px;color:var(--bad);border-color:var(--bad)" onclick="clearLog()">🗑 Pastro gjurmimin</button>`:""}
+   </div>
    <table class="tbl"><thead><tr><th>Data</th><th>Përdoruesi</th><th>Veprimi</th><th>Dokumenti</th><th>Detaje</th></tr></thead><tbody>
    ${S.data.log.map(l=>`<tr><td class="sub" style="white-space:nowrap">${esc(l.ts)}</td><td>${esc(l.user)}</td><td>${esc(l.act)}</td><td class="t">${esc(l.doc)}</td><td class="sub" style="font-size:13px">${esc(l.detail)}</td></tr>`).join("") || `<tr><td colspan="5" class="empty">Asnjë veprim i regjistruar.</td></tr>`}
    </tbody></table>`);
+}
+async function clearLog(){
+  if(!can("perdoruesit")) return;
+  if(!confirm(`Pastro gjurmimin?\n\nFshihen të GJITHA regjistrimet e historikut të veprimeve — kjo s'mund të zhbëhet.\nDokumentet, dosjet dhe kontratat NUK preken; veprimet e reja regjistrohen normalisht.`)) return;
+  const {error} = await sb.from("activity_log").delete().gt("id", 0);
+  if(error) return toast(error.message);
+  toast("Gjurmimi u pastërua");
+  await refresh(); logPage();
 }
 
 /* ---------- përdoruesit: të drejta me check box (Odoo/Vyapar) ---------- */
