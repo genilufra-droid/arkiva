@@ -94,6 +94,9 @@ button,input,select{font:inherit}
 .paper p{margin:0 0 8px;text-align:justify}
 .paper .ln{height:7px;background:#e6e6ea;border-radius:2px;margin:9px 0}
 .info{padding:22px;background:#fff}
+.info h1.qt{font-size:19px;margin:0 0 16px;padding-bottom:14px;border-bottom:1px solid var(--line);word-break:break-word}
+.vhash{font:12px ui-monospace,Menlo,Consolas,monospace;color:var(--muted)}
+.vbelow{background:#fff;padding:18px 26px 26px;border-top:1px solid var(--line)}
 .info h1{font-size:19px;margin:0 0 14px;line-height:1.3}
 .kv{display:grid;grid-template-columns:120px 1fr;gap:10px 12px;margin:0 0 16px}
 .kv dt{color:var(--muted)}
@@ -900,8 +903,9 @@ function docPage(id){
     <a href="#/dokument/${t.id}">${esc(t.proto)}</a> <span class="sm">#${t.idx||"—"}</span>
     <div class="sm">${esc(t.subject)}</div><div class="sm">${t.dir==="hyrje"?"Hyrje":"Dalje"} · ${t.date}</div></div></li>`;
   /* ---- viewer: PDF i integruar (si QBZ) ose parapamja e regjistrit ---- */
+  const isPdf = d.mime==="application/pdf" || /\.pdf$/i.test(d.file||"");
   const viewerHtml = d.path
-    ? `<div class="vbar"><span>${esc(d.file)}</span><span class="sp"></span><span>${d.size}</span></div>
+    ? `<div class="vbar"><span>${esc(d.file)}</span>${d.sha?`<span class="vhash">${esc(d.sha.slice(0,12))}…</span>`:""}<span class="sp"></span><span>${d.size}</span></div>
        <div class="pdfwrap" id="pdfbox"><span style="color:var(--muted)">Po hapet dokumenti…</span></div>`
     : `<div class="vbar"><span>pa skedar — parapamje regjistri</span><span class="sp"></span>
         <button onclick="zoom(-10)">−</button><span id="zv">100%</span><button onclick="zoom(10)">+</button></div>
@@ -916,14 +920,34 @@ function docPage(id){
   `<div class="docwrap">
     <div class="viewer">
       ${viewerHtml}
+      <div class="vbelow">
+        <div class="hl" style="text-align:center;margin-bottom:10px">PËRMBAJTJA</div>
+        ${nderv.length ? nderv.map(sec=>`
+        <details class="secbox" ${sec.items.length<=2?"open":""}>
+          <summary>${esc(sec.label)}<span class="n">${sec.items.length}</span></summary>
+          <ul class="rel" style="border:0">${sec.items.map(li1).join("")}</ul>
+        </details>`).join("")
+          : `<p class="sm" style="color:var(--muted);text-align:center;margin:4px 0 10px">Nuk ka të dhëna të regjistruara.</p>`}
+        ${can("regjistro")?`
+        <div id="lkwrap" class="combo" style="display:none;margin-top:6px">
+          <input id="lk-in" placeholder="Kërko protokoll ose lëndë për t'u lidhur…" autocomplete="off">
+          <input type="hidden" id="lk-val"><div class="menu" id="lk-menu"></div>
+          <div class="addbox" id="lk-add" style="display:none"></div>
+        </div>
+        <button class="btn line" style="margin:10px auto 0;max-width:340px" onclick="document.getElementById('lkwrap').style.display='block'">＋ Lidh me dokument tjetër</button>`:""}
+        ${hist.length?`<div class="hl" style="text-align:center;margin-top:20px;margin-bottom:10px">HISTORIKU I DOKUMENTIT</div>
+        <details class="secbox" open><summary>Ndryshimet<span class="n">${hist.length}</span></summary>
+        <ul class="rel" style="border:0">${hist.map(h=>`<li><span class="dot"></span><div><b>${esc(h.act)}</b>
+          <div class="sm">${esc(h.ts)} · ${esc(h.user)}</div>${h.detail?`<div class="sm">${esc(h.detail)}</div>`:""}</div></li>`).join("")}</ul></details>`:""}
+      </div>
     </div>
     <div class="info">
-      <h1>${esc(d.subject)}</h1>
+      <h1 class="qt">${esc(d.proto)}</h1>
       <dl class="kv">
-        <dt>Protokolli</dt><dd>${esc(d.proto)}</dd>
-        <dt>Dosja · Nr.</dt><dd><a href="#/dosje/${c.id}">${esc(c.no)}</a> · dokumenti <b>#${d.idx||"—"}</b> i dosjes</dd>
+        <dt>Nr.</dt><dd>${esc(d.proto)}<div class="sub">dokumenti <b>#${d.idx||"—"}</b> i dosjes</div></dd>
+        <dt>Datë</dt><dd>${d.date}</dd>
+        <dt>Titulli</dt><dd>${esc(d.subject)}</dd>
         <dt>Lloji</dt><dd>${d.dir==="hyrje"?"Hyrje":"Dalje"} · ${esc(d.kind)}</dd>
-        <dt>Data</dt><dd>${d.date}</dd>
         <dt>Nga / për</dt><dd>${esc(d.from)}</dd>
         <dt>Dosja</dt><dd><a href="#/dosje/${c.id}">${esc(c.no)} · ${esc(c.title)}</a></dd>
         <dt>Vendndodhja</dt><dd>${esc(c.loc||"—")}</dd>
@@ -934,32 +958,14 @@ function docPage(id){
       ${d.deleted
         ? `<div class="notice bad" style="margin-bottom:14px">🗑 KY DOKUMENT ËSHTË FSHIRË — ruhet në gjurmim.${can("fshi")?` <button class="pill" onclick="restoreDoc('${d.id}')">↩ Rikthe</button>`:""}</div>`
         : `
+      ${can("shkarko")?`
+      <button class="btn red" onclick="downloadDoc('${d.id}',false)">${ico.dl} ${isPdf?"Shkarko PDF":"Shkarko skedarin"} (${d.size})</button>
+      <button class="btn line" onclick="downloadDoc('${d.id}',true)">${ico.dl} Hap në skedë të re</button>`:""}
+      ${d.sha?`<div class="hl" style="margin-top:14px">SHA-256 (për të verifikuar që dokumenti nuk është ndryshuar)</div><div class="hash">${esc(d.sha)}</div>`:""}
       ${can("ndrysho")?`<button class="btn line" onclick="location.hash='#/ndrysho/${d.id}'">✎ Ndrysho të dhënat</button>`:""}
       ${can("fshi")?`<button class="btn line" style="color:var(--bad);border-color:var(--bad)" onclick="deleteDoc('${d.id}')">✕ Fshi dokumentin</button>`:""}`}
-      ${can("shkarko")?`
-      <button class="btn red" onclick="downloadDoc('${d.id}',false)">${ico.dl} Shkarko skedarin (${d.size})</button>
-      <button class="btn line" onclick="downloadDoc('${d.id}',true)">${ico.dl} Hap në skedë të re</button>`:""}
-      ${d.sha?`<div class="hl" style="margin-top:16px">SHA-256 (për verifikim integriteti)</div><div class="hash">${esc(d.sha)}</div>`:""}
       ${d.kind==="kërkesë" && reqOpen(d) ? `<div class="box ${late?"late":""}"><b>Kërkesë pa përgjigje</b><div class="sub" style="margin-top:4px">${late?"Afati ka kaluar.":"Lidhni përgjigjen për ta mbyllur kërkesën."}</div>
         ${can("regjistro")?`<button class="btn line" style="margin-top:10px;margin-bottom:0" onclick="location.hash='#/regjistro?case=${d.case}&dir=dalje&kind=përgjigje&reply=${d.id}'">Regjistro përgjigjen</button>`:""}</div>`:""}
-      <div class="hl" style="margin-top:16px">Ndërvarësia</div>
-      ${nderv.length ? nderv.map(sec=>`
-      <details class="secbox" ${sec.items.length<=2?"open":""}>
-        <summary>${esc(sec.label)}<span class="n">${sec.items.length}</span></summary>
-        <ul class="rel" style="border:0">${sec.items.map(li1).join("")}</ul>
-      </details>`).join("")
-        : `<p class="sm" style="color:var(--muted);margin:4px 0 12px">Nuk ka të dhëna të regjistruara.</p>`}
-      ${can("regjistro")?`
-      <div id="lkwrap" class="combo" style="display:none;margin-top:4px">
-        <input id="lk-in" placeholder="Kërko protokoll ose lëndë për t'u lidhur…" autocomplete="off">
-        <input type="hidden" id="lk-val"><div class="menu" id="lk-menu"></div>
-        <div class="addbox" id="lk-add" style="display:none"></div>
-      </div>
-      <button class="btn line" style="margin-top:8px" onclick="document.getElementById('lkwrap').style.display='block'">＋ Lidh me dokument tjetër</button>`:""}
-      ${hist.length?`<div class="hl" style="margin-top:14px">Historiku i dokumentit</div>
-      <details class="secbox" open><summary>Ndryshimet<span class="n">${hist.length}</span></summary>
-      <ul class="rel" style="border:0">${hist.map(h=>`<li><span class="dot"></span><div><b>${esc(h.act)}</b>
-        <div class="sm">${esc(h.ts)} · ${esc(h.user)}</div>${h.detail?`<div class="sm">${esc(h.detail)}</div>`:""}</div></li>`).join("")}</ul></details>`:""}
     </div>
   </div>`);
   if(d.path) embedPdf(d.id);
