@@ -364,7 +364,6 @@ function renderAuth(mode, msg){
       </form>
       <div class="authlinks"><a href="javascript:void 0" onclick="renderAuth('up')">Regjistrohu</a>
         <a href="javascript:void 0" onclick="renderAuth('forgot')">Keni harruar fjalëkalimin?</a></div>
-      <p class="authnote">Llogaritë e reja aktivizohen nga drejtuesi pas konfirmimit të email-it.</p>
     </div></div>`;
   }else if(mode==="up"){
     app.innerHTML = `<div class="authbg"><div class="authcard">
@@ -379,7 +378,6 @@ function renderAuth(mode, msg){
         <button class="btn red" type="submit">Regjistrohu</button>
       </form>
       <div class="authlinks"><a href="javascript:void 0" onclick="renderAuth('in')">← Kthehu te hyrja</a></div>
-      <p class="authnote">Do të merrni email konfirmimi. Deri sa drejtuesi t'ju aprovojë, s'shihni të dhëna.</p>
     </div></div>`;
   }else if(mode==="forgot"){
     app.innerHTML = `<div class="authbg"><div class="authcard">
@@ -392,7 +390,6 @@ function renderAuth(mode, msg){
         <button class="btn red" type="submit">Dërgo linkun e rikthimit</button>
       </form>
       <div class="authlinks"><a href="javascript:void 0" onclick="renderAuth('in')">← Kthehu te hyrja</a></div>
-      <p class="authnote">Nëse s'e merr email-in brenda 2–3 minutash, kontrollo edhe dosjen Spam.</p>
     </div></div>`;
   }else if(mode==="newpass"){
     app.innerHTML = `<div class="authbg"><div class="authcard">
@@ -413,10 +410,8 @@ function renderAuth(mode, msg){
       <div class="seal">ARK</div>
       <h1>PRIT MIRATIMIN</h1>
       <p class="sub">Llogaria u krijua me sukses</p>
-      <div class="whoami"><span class="tag in">${esc(S.session?.user?.email||"")}</span>
-        <span>Email-i i konfirmuar. Drejtuesi duhet t'ju aktivizojë që të shihni arkivën.</span></div>
+      <div class="whoami"><span class="tag in">${esc(S.session?.user?.email||"")}</span></div>
       <button class="btn red" onclick="doSignOut()">Dil</button>
-      <p class="authnote">Rifreskoni faqen pasi drejtuesi t'ju ketë aprovuar.</p>
     </div></div>`;
   }
 }
@@ -434,7 +429,7 @@ async function doSignUp(e){
     options:{ data:{ full_name:f.name.value.trim() } }
   });
   if(error) return renderAuth("up",{t:authErrText(error.message)});
-  if(!data.session) renderAuth("in",{ok:true,t:"Regjistruar! Hapni email-in dhe klikoni linkun e konfirmimit, pastaj pritni miratimin e drejtuesit."});
+  if(!data.session) renderAuth("in",{ok:true,t:"Regjistruar me sukses."});
 }
 async function doForgot(e){
   e.preventDefault();
@@ -728,8 +723,7 @@ async function usersPage(){
       </div>
       ${p.id===S.profile?.id?`<div class="hint" style="margin-top:10px;color:var(--warn)">⚠ Kujdes: po ndryshon të drejtat e tua — mos i çaktivizo vetes menaxhimin e përdoruesve.</div>`:""}
      </div>`;}).join("")}
-   </div>
-   <div style="padding:0 22px 22px" class="sub">Çdo kuti ruhet menjëherë në server. Fshirja e përdoruesve bëhet nga Supabase Dashboard.</div>`);
+   </div>`);
 }
 async function setPerm(id,k,v){
   const {data} = await sb.from("profiles").select("perms").eq("id",id).single();
@@ -835,7 +829,6 @@ function docPage(id){
         <input id="lk-in" placeholder="Kërko protokoll ose lëndë për t'u lidhur…" autocomplete="off">
         <input type="hidden" id="lk-val"><div class="menu" id="lk-menu"></div>
         <div class="addbox" id="lk-add" style="display:none"></div>
-        <div class="hint">Krihet lidhje «lidhur me» me dokumentin e zgjedhur.</div>
       </div>
       <button class="btn line" style="margin-top:8px" onclick="document.getElementById('lkwrap').style.display='block'">＋ Lidh me dokument tjetër</button>`:""}
       ${hist.length?`<div class="hl" style="margin-top:14px">Historiku i dokumentit</div>
@@ -974,7 +967,7 @@ function registerPage(params){
         </div></div>
       <div class="fld"><label>Numri i protokollit</label>
         <input class="protoin" name="proto" id="fProto" value="${nextProto(dir)}" autocomplete="off">
-        <div class="hint" id="protoHint">Caktohet automatikisht nga sistemi; mund ta ndryshoni (duhet të jetë unik).</div></div>
+        <div class="hint" id="protoHint"></div></div>
       <div class="fld"><label>Data e dokumentit</label><input type="date" name="date" value="${TODAY_ISO()}"></div>
       <div class="fld full"><label>Dosja</label>
         <div class="combo" id="cs-wrap"><input id="cs-in" placeholder="Shkruani emrin ose numrin e dosjes…" autocomplete="off"><input type="hidden" id="cs-val"><div class="menu" id="cs-menu"></div></div>
@@ -984,15 +977,14 @@ function registerPage(params){
         <div class="addbox" id="kd-add" style="display:none"></div></div>
       <div class="fld full"><label>Skedari (PDF ose foto)</label>
         <input type="file" name="file" id="fFile" accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff,image/*,application/pdf">
-        <div class="hint" id="fileHint">Ngarkohet në arkivin privat; llogaritet SHA-256 për të kontrolluar dublikatet.</div>
+        <div class="hint" id="fileHint"></div>
         <div id="dupWarn"></div></div>
       <div class="fld"><label>Nga / për kë</label><input name="from" placeholder="p.sh. Nexa Office sh.p.k."></div>
       <div class="fld"><label>Lënda</label><input name="subject" maxlength="200" placeholder="Përshkrim i shkurtër i dokumentit"></div>
-      <div class="fld" id="dueWrap" style="display:none"><label>Afati i përgjigjes</label><input type="date" name="due">
-        <div class="hint">Kërkesa duhet të ketë afat.</div></div>
+      <div class="fld" id="dueWrap" style="display:none"><label>Afati i përgjigjes</label><input type="date" name="due"></div>
       <div class="fld full" id="replyWrap" style="display:none"><label>Përgjigje ndaj kërkesës së hapur</label>
         <div class="combo" id="rp-wrap"><input id="rp-in" placeholder="Kërko sipas protokollit ose lëndës…" autocomplete="off"><input type="hidden" id="rp-val"><div class="menu" id="rp-menu"></div></div>
-        <div class="hint">Vetëm kërkesat e hapura në dosjen e zgjedhur.</div></div>
+      </div>
     </div>
     <div id="formNotice"></div>
     <div class="fbtn">
@@ -1080,7 +1072,7 @@ function checkProto(){
   const hint=document.getElementById("protoHint"), inp=document.getElementById("fProto");
   const taken = S.data.docs.some(d=>d.proto===v);
   inp.classList.toggle("bad", !!taken || !v);
-  hint.textContent = !v ? "Numri i protokollit është i detyrueshëm." : taken ? "Ky numër është tashmë i përdorur. Zgjidhni një tjetër." : "Caktohet automatikisht nga sistemi; mund ta ndryshoni (duhet të jetë unik).";
+  hint.textContent = !v ? "Numri i protokollit është i detyrueshëm." : taken ? "Ky numër është tashmë i përdorur. Zgjidhni një tjetër." : "";
   hint.style.color = (taken||!v) ? "var(--bad)" : "";
   return !taken && !!v;
 }
