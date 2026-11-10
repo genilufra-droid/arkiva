@@ -529,6 +529,8 @@ function sidebar(active){
     <a href="#/kerkesat?vonuar=1" class="${active==="late"?"on":""}">${ico.alert}Afate të kaluara<span class="n">${late}</span></a>
     ${can("perdoruesit") ? `<a href="#/perdoruesit" class="${active==="usr"?"on":""}">${ico.users}Përdoruesit</a>` : ""}
     ${can("backup") ? `<a href="javascript:void 0" onclick="downloadBackup()" title="Eksporto të gjitha të dhënat në një skedar JSON">${ico.dlb}Shkarko backup</a>` : ""}
+    ${can("backup") ? `<a href="javascript:void 0" onclick="restoreBackup()" title="Riktho të dhënat nga një skedar backup (rreshtat ekzistues përditësohen, mos dyfishohen)">↩ Restore nga backup</a>` : ""}
+    ${can("perdoruesit") ? `<a href="javascript:void 0" onclick="resetArkiva()" title="Fshi gjithçka dhe kthe arkivën në gjendjen fillestare (kërkon backup + konfirmim me shkrim)">⟲ Reset i plotë…</a>` : ""}
     ${can("gjurmimi") ? `<div class="sec">Lidhje</div>
     <a href="#/gjurmimi" class="${active==="log"?"on":""}">${ico.book}Gjurmimi i ndryshimeve</a>` : ""}
   </aside>`;
@@ -1624,6 +1626,76 @@ async function downloadBackup(){
   a.download=`arkiva-backup-${new Date().toISOString().slice(0,16).replace(/[:T]/g,"-")}.json`;
   a.click();
   toast("Backup-i u shkarkua në kompjuterin tuaj");
+}
+
+/* ---------- restore nga backup (vetëm drejtuesi) ---------- */
+function restoreBackup(){
+  if(!can("backup")) return toast("S'ke të drejtën e restore.");
+  const inp=document.createElement("input"); inp.type="file"; inp.accept=".json,application/json";
+  inp.onchange=async()=>{
+    try{
+      const payload=JSON.parse(await inp.files[0].text());
+      if(!payload || !payload.note || !payload.exported_at) return toast("Skedari s'është backup i Arkivës Elektronike.");
+      const N=t=>Array.isArray(payload[t])?payload[t].length:0;
+      const dataB=new Date(payload.exported_at).toLocaleString("sq-AL");
+      if(!confirm(`Rikthim nga backup-i i ${dataB}\n\nDosje: ${N("cases")} · Dokumente: ${N("correspondence")} · Kontrata: ${N("contracts")} · Pagesa: ${N("contract_payments")} · Historik: ${N("activity_log")}\n\nRreshtat ekzistues me të njëjtin ID përditësohen (mos dyfishohen). Skedarët fizikë mbeten në ruajtëse. Vazhdo?`)) return;
+      toast("Po rikthehen të dhënat…");
+      const {error}=await sb.rpc("restore_arkiva",{payload});
+      if(error) return toast("Restore: "+error.message);
+      toast("Të dhënat u rikthyen nga backup-i ✓");
+      await refresh(); route();
+    }catch(e){ toast("Skedar i palexueshëm: "+e.message); }
+  };
+  inp.click();
+}
+
+/* ---------- reset i plotë (vetëm drejtuesi; backup i detyrueshëm + FSHIJ) ---------- */
+function resetArkiva(){
+  if(!can("perdoruesit")) return toast("Vetëm drejtuesi mund të bëjë reset të plotë.");
+  let backupDone=false;
+  const w=document.createElement("div");
+  w.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:80;display:grid;place-items:center;padding:16px;overflow:auto";
+  w.innerHTML=`<div class="authcard" style="max-width:540px;width:100%;text-align:left">
+    <div class="seal">ARK</div>
+    <h1 style="font-size:20px">RESET I PLOTË I ARKIVËS</h1>
+    <div class="notice bad" style="margin:12px 0">⚠ Fshihen PËRGJITHMONË: të gjitha dosjet, dokumentet, lidhjet, kontratat, pagesat dhe historiku — plus skedarët e skanuar nga ruajtësja.<br><br>Mbeten: <b>përdoruesit</b> dhe numërimi i protokolleve (pa dyfishime).</div>
+    <button id="rsBk" class="btn red">${ico.dl} 1. Shkarko backup-un (i detyrueshëm)</button>
+    <div class="fld" style="margin-top:12px"><label>2. Shkruaj FSHIJ për të konfirmuar</label><input id="rsTxt" placeholder="FSHIJ" autocomplete="off"></div>
+    <button id="rsGo" class="btn line" style="margin-top:12px;color:var(--bad);border-color:var(--bad)" disabled>⟲ Fshi gjithçka</button>
+    <button id="rsNo" class="btn line" style="margin-top:6px">Anulo</button>
+  </div>`;
+  document.body.appendChild(w);
+  w.querySelector("#rsNo").onclick=()=>w.remove();
+  w.querySelector("#rsBk").onclick=async()=>{
+    await downloadBackup();
+    backupDone=true;
+    const b=w.querySelector("#rsBk"); b.textContent="✓ Backup-u u shkarkua — ruaje në vend të sigurt"; b.disabled=true;
+    w.querySelector("#rsTxt").focus();
+  };
+  w.querySelector("#rsTxt").oninput=e=>{ w.querySelector("#rsGo").disabled=!(backupDone && e.target.value.trim()==="FSHIJ"); };
+  w.querySelector("#rsGo").onclick=async()=>{
+    if(!confirm("FUNDI I RRUGËS: pas këtij hapi s'ka kthim pa backup. Vazhdo me fshirjen e plotë të arkivës?")) return;
+    toast("Po rivendoset arkiva…");
+    const {error}=await sb.rpc("reset_arkiva");
+    if(error){ toast("Reset: "+error.message); return; }
+    const nf=await pastroStorage();
+    toast("Arkiva u rivendos në gjendjen fillestare"+(nf>0?` (u fshinë ${nf} skedarë)`:""));
+    w.remove(); await refresh(); route();
+  };
+}
+async function pastroStorage(){
+  let bound=0;
+  const fshi=async pre=>{
+    const {data,error}=await sb.storage.from("dokumente").list(pre||"", {limit:1000});
+    if(error||!data||!data.length) return;
+    for(const it of data){
+      const p = pre ? pre+"/"+it.name : it.name;
+      if(it.id){ bound++; await sb.storage.from("dokumente").remove([p]); }
+      else await fshi(p);
+    }
+  };
+  try{ await fshi(""); }catch(_){}
+  return bound;
 }
 
 /* ---------- sinkronizimi live (Realtime, ~1 sekondë) ---------- */
