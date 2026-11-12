@@ -281,6 +281,15 @@ button,input,select{font:inherit}
 .perm{display:flex;gap:9px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:9px 11px;cursor:pointer;font-weight:500;margin:0}
 .perm input{width:auto;height:auto;margin:0;accent-color:var(--red)}
 .perm:has(input:checked){border-color:var(--ok);background:var(--okbg)}
+/* ---- FAZA 2 · delegime, modal, faqja publike e link-ut ---- */
+.mbg{position:fixed;inset:0;background:rgba(24,10,12,.55);backdrop-filter:blur(2px);z-index:60;display:flex;align-items:center;justify-content:center;padding:18px}
+.mcard{background:#fff;border-radius:14px;max-width:540px;width:100%;max-height:92vh;overflow:auto;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.4)}
+.mcard h2{font-size:19px}
+.mcard select,.mcard textarea{width:100%;border:1px solid #d6d6dc;border-radius:8px;padding:9px 10px;font-size:14px;font-family:inherit;background:#fff;color:#16181f}
+.mcard select{height:40px}
+.mcard label.fk{display:block;font-size:12px;color:var(--muted);font-weight:600;margin:12px 0 5px}
+.sigcv{border:2px dashed #cfcfd8;border-radius:10px;background:#fbfbfd;cursor:crosshair;touch-action:none;display:block;width:100%;height:130px}
+.authcard textarea{width:100%;border:1px solid #d6d6dc;border-radius:9px;padding:10px 12px;font-size:15px;font-family:inherit;color:#16181f;background:#fff}
 </style>
 </head>
 <body>
@@ -326,7 +335,7 @@ try{
 }
 
 /* ---------- gjendja ---------- */
-const S = { session:null, profile:null, enteredFor:null, data:{cases:[],docs:[],log:[],contracts:[]} };
+const S = { session:null, profile:null, enteredFor:null, data:{cases:[],docs:[],log:[],contracts:[],sectors:[],deleg:[],xlinks:[],users:[]} };
 
 /* ---------- ndihmës ---------- */
 const $ = s => document.querySelector(s);
@@ -367,7 +376,9 @@ const ACT_LABEL = {
   kontrata_krijuar:"Kontratë e krijuar", kontrata_ndryshuar:"Kontratë e ndryshuar", kontrata_fshire:"Kontratë e fshirë",
   kontrata_rikthyer:"Kontratë e rikthyer", kontrata_skedar:"Skedar kontrate", pagesa_shtuar:"Pagesë e shtuar",
   pagesa_paguar:"Pagesë e shënuar paguar", pagesa_hapur:"Pagesë e hapur", pagesa_ndryshuar:"Pagesë e ndryshuar",
-  pagesa_fshire:"Pagesë e fshirë"
+  pagesa_fshire:"Pagesë e fshirë",
+  dokument_percjelle:"Dokument i përcjellë", trajtim_pranuar:"Trajtim i pranuar", trajtim_mbyllur:"Trajtim i mbyllur",
+  percjellje_anuluar:"Përcjellje e anuluar", link_jashtme_lshuar:"Link i jashtë i lëshuar", link_jashtme_perdorur:"Link i jashtë i përdorur"
 };
 const AUTH_ERR = {
   "Invalid login credentials":"Kredenciale të pasakta — kontrolloni email-in dhe fjalëkalimin.",
@@ -430,6 +441,30 @@ async function refresh(){
     if(!reply || reply.deleted) return;      /* përgjigja e fshirë nuk mbyll kërkesën */
     REPLY_TO[l.from_id]=l.to_id; REPLY_DOC[l.to_id]=l.from_id;
   });
+  /* FAZA 2 · «Përcill te»: sektorët, delegimet, link-et e jashtëm, stafi */
+  const [se,de,xl,us] = await Promise.all([
+    sb.from("sectors").select("*").order("name"),
+    sb.from("delegations").select("*").order("created_at",{ascending:false}),
+    sb.from("external_links").select("*").order("created_at",{ascending:false}),
+    sb.from("profiles").select("id,full_name,active").order("full_name")
+  ]);
+  const bad2 = [se,de,xl,us].find(r=>r.error);
+  if(bad2){ toast("Gabim në ngarkim (përcjelljet): "+bad2.error.message); }
+  else{
+    S.data.sectors = se.data;
+    S.data.users   = us.data;
+    S.data.deleg = de.data.map(r=>({
+      id:r.id, doc:r.document_id, from:r.from_user, sector:r.to_sector, to:r.to_user,
+      note:r.note||"", status:r.status||"ne_pritje",
+      due:r.due_date?fmtD(r.due_date):"", created:fmtDT(r.created_at),
+      accepted:r.accepted_at?fmtDT(r.accepted_at):"", closed:r.closed_at?fmtDT(r.closed_at):"", closedNote:r.closed_note||""
+    }));
+    S.data.xlinks = xl.data.map(r=>({
+      id:r.id, doc:r.document_id, token:r.token, name:r.name||"", note:r.note||"", sig:r.signature_data||"",
+      created:fmtDT(r.created_at), expires:r.expires_at?new Date(r.expires_at):null,
+      expiresD:r.expires_at?fmtDT(r.expires_at):"", used:r.used_at?fmtDT(r.used_at):""
+    }));
+  }
   updateUserbox();
 }
 function updateUserbox(){
@@ -573,13 +608,16 @@ async function boot(){
   cleanUrl();
   sb.auth.onAuthStateChange((ev,sess)=>{
     if(ev==="PASSWORD_RECOVERY"){ S.session=sess; S.pendingRecovery=true; history.replaceState(null,"",location.pathname+"#/"); renderAuth("newpass"); return; }
-    if(ev==="SIGNED_OUT"){ S.session=null; S.profile=null; S.enteredFor=null; S.pendingRecovery=false; liveStop(); updateUserbox(); renderAuth("in"); return; }
+    if(ev==="SIGNED_OUT"){ S.session=null; S.profile=null; S.enteredFor=null; S.pendingRecovery=false; liveStop(); updateUserbox();
+      if((location.hash||"").startsWith("#/link/")) publicLinkPage(decodeURIComponent((location.hash||"").split("/")[2]||""));
+      else renderAuth("in"); return; }
     if(sess && S.session?.user?.id!==sess.user.id){ S.session=sess; S.enteredFor=null; }
     else if(sess){ S.session=sess; }
     if(sess) maybeEnter();
   });
   const {data:{session}} = await sb.auth.getSession();
   S.session=session;
+  if((location.hash||"").startsWith("#/link/")) return publicLinkPage(decodeURIComponent((location.hash||"").split("/")[2]||""));
   if(!session) renderAuth("in"); else await maybeEnter();
 }
 
@@ -603,6 +641,8 @@ function sidebar(active){
     ${a("in","Hyrje (protokolli H)",hyrje,"#/dosjet?d=hyrje")}
     ${a("out","Dalje (protokolli D)",dalje,"#/dosjet?d=dalje")}
     <a href="#/libri" class="${active==="libri"?"on":""}">${ico.book}Libri i Protokollit</a>
+    ${(()=>{ const n=myDeleg().filter(x=>x.status==="ne_pritje"||x.status==="ne_trajtim").length;
+       return `<a href="#/percjelljet" class="${active==="per"?"on":""}">➤ Përcjelljet për mua<span class="n"${n?` style="background:var(--warnbg);color:var(--warn)"`:""}>${n}</span></a>`; })()}
     <div class="sec">Kontratat</div>
     ${a("kon","Kontratat",S.data.contracts.filter(k=>!k.deleted).length,"#/kontratat")}
     ${kj.n?`<a href="#/kontratat?k=1" class="${active==="kuj"?"on":""}">${ico.alert}Kujtesa (7 ditë)<span class="n" style="background:var(--badbg);color:var(--bad)">${kj.n}</span></a>`:""}
@@ -653,6 +693,18 @@ function home(){
       ${kj.pays.length>4?`<li class="sm"><a href="#/kontratat?k=1">… edhe ${kj.pays.length-4} pagesa të tjera →</a></li>`:""}
       ${kj.kontratat.slice(0,3).map(k=>`<li><span class="dot"></span><div><a href="#/kontrata/${k.id}">${esc(k.no)}</a> — skadon më ${k.endD}<div class="sm">${esc(k.title)}</div></div></li>`).join("")}
       </ul></div>`; })()}
+    ${(()=>{ const my=myDeleg(); if(!my.length) return "";
+      const act=my.filter(x=>x.status==="ne_pritje"||x.status==="ne_trajtim");
+      return `<div class="box" style="margin-bottom:14px;border-left:4px solid #1a4fb4">
+      <div class="hl" style="color:#1a4fb4">➤ Delegimet e mia (${act.length} aktive)</div>
+      ${act.length?`<table class="tbl" style="margin-top:8px"><tbody>
+      ${act.slice(0,5).map(x=>{ const d=docById(x.doc)||{}; return `<tr><td><a href="#/dokument/${x.doc}" class="t">${esc(d.proto||"—")}</a><div class="sub">${esc(d.subject||"")}${x.note?` · „${esc(x.note)}“`:""}</div></td>
+        <td style="white-space:nowrap">${x.due?`afati <b>${x.due}</b>`:"pa afat"}</td>
+        <td><span class="tag ${DELEG_CLS[x.status]||""}">${DELEG_LABEL[x.status]||x.status}</span></td>
+        <td style="white-space:nowrap">${delegActions(x)}</td></tr>`; }).join("")}
+      </tbody></table>`:`<p class="sm" style="color:var(--muted);margin:6px 0 0">S'ka përcjellje aktive — <a href="#/percjelljet">shiko historikun →</a></p>`}
+      ${my.length>5?`<div class="sm" style="margin-top:8px"><a href="#/percjelljet">… edhe ${my.length-5} të tjera →</a></div>`:""}
+      </div>`; })()}
     <div class="toolbar"><h2>Kërkesa që presin përgjigje (${reqs.length})</h2><a href="#/kerkesat" class="pill">Shiko të gjitha →</a>${can("regjistro")?`<a href="#/regjistro" class="newbtn">＋ Protokollo dokument</a>`:`<span class="newbtn dis">＋ Protokollo dokument</span>`}</div>
     ${reqs.length? `<table class="tbl"><thead><tr><th>Protokolli</th><th>Lënda</th><th>Nga</th><th>Afati</th><th>Statusi</th></tr></thead><tbody>
     ${reqs.map(d=>`<tr><td><a href="#/dokument/${d.id}" class="t">${esc(d.proto)}</a></td><td>${esc(d.subject)}<div class="sub">${esc((caseOf(d.case)||{}).no||"")} · #${d.idx||"—"} në dosje</div></td>
@@ -977,6 +1029,380 @@ async function setActive(id,active){
   usersPage();
 }
 
+/* ============================================================
+   FAZA 2 · «PËRCILL TE…» — delegime + linqe për të jashtëm
+   ============================================================ */
+const DELEG_LABEL = { ne_pritje:"Në pritje", ne_trajtim:"Në trajtim", mbyllur:"Mbyllur", anuluar:"Anuluar" };
+const DELEG_CLS   = { ne_pritje:"open", ne_trajtim:"in", mbyllur:"closed", anuluar:"late" };
+const sectorById = id => (S.data.sectors||[]).find(s=>s.id===id);
+const usrById    = id => (S.data.users||[]).find(u=>u.id===id);
+const delegOf    = docId => (S.data.deleg||[]).filter(x=>x.doc===docId);
+const delegActive= docId => delegOf(docId).filter(x=>x.status==="ne_pritje"||x.status==="ne_trajtim");
+const myDeleg    = () => (S.data.deleg||[]).filter(x=>x.to===(S.profile&&S.profile.id));
+function delegTarget(x){
+  if(x.sector){ const s=sectorById(x.sector); return "Sektori "+(s?s.name:"—"); }
+  if(x.to){ const u=usrById(x.to); return u?u.full_name:"person"; }
+  return "—";
+}
+function delegBadge(x){
+  return `<span class="tag ${DELEG_CLS[x.status]||""}" title="Përcjellje aktive">➤ ${esc(delegTarget(x))} · ${DELEG_LABEL[x.status]||x.status}${x.due?` · afati ${x.due}`:""}</span>`;
+}
+function delegActions(x){
+  const me = S.profile && S.profile.id;
+  const mine = x.to===me;
+  const handler = mine || (!x.to && can("ndrysho"));   /* sektorin e merr në trajtim stafi me të drejtë ndryshimi */
+  let h = "";
+  if(x.status==="ne_pritje"){
+    if(handler) h += `<button class="pill" onclick="delegPrano('${x.id}')">Prano</button> `;
+    if(can("ndrysho")) h += `<button class="pill" onclick="delegAnulo('${x.id}')">Anulo</button>`;
+  } else if(x.status==="ne_trajtim"){
+    if(mine || can("ndrysho")) h += `<button class="pill" onclick="delegMbyll('${x.id}')">Mbyll</button> `;
+    if(can("ndrysho")) h += `<button class="pill" onclick="delegAnulo('${x.id}')">Anulo</button>`;
+  }
+  return h;
+}
+function delegRow(x){
+  const d = docById(x.doc)||{};
+  const from = x.from?((usrById(x.from)||{}).full_name||"—"):"—";
+  return `<tr>
+    <td><a href="#/dokument/${x.doc}" class="t">${esc(d.proto||"—")}</a><div class="sub">${esc(d.subject||"")}</div></td>
+    <td>${esc(from)}<div class="sub">${x.created||""}</div></td>
+    <td>${esc(delegTarget(x))}${x.note?`<div class="sub">„${esc(x.note)}“</div>`:""}</td>
+    <td>${x.due||"—"}</td>
+    <td><span class="tag ${DELEG_CLS[x.status]||""}">${DELEG_LABEL[x.status]||x.status}</span>${x.closedNote?`<div class="sub">${esc(x.closedNote)}</div>`:""}</td>
+    <td style="white-space:nowrap">${delegActions(x)}</td></tr>`;
+}
+/* ---- seksioni «PËRCJELLJET» + «LINQE PËR TË JASHTËM» në faqen e dokumentit ---- */
+function delegBox(d){
+  const list = delegOf(d.id);
+  const xl = (S.data.xlinks||[]).filter(x=>x.doc===d.id);
+  if(!list.length && !xl.length) return "";
+  let h = "";
+  if(list.length){
+    h += `<div class="hl" style="margin-top:18px">PËRCJELLJET (${list.length})</div>
+    <table class="tbl"><thead><tr><th>Marrësi</th><th>Afati</th><th>Statusi</th><th></th></tr></thead><tbody>
+    ${list.map(x=>`<tr><td>${esc(delegTarget(x))}<div class="sub">nga ${esc(x.from?((usrById(x.from)||{}).full_name||"—"):"—")} · ${x.created||""}${x.note?` · „${esc(x.note)}“`:""}</div></td>
+      <td>${x.due||"—"}</td>
+      <td><span class="tag ${DELEG_CLS[x.status]||""}">${DELEG_LABEL[x.status]||x.status}</span>${x.closedNote?`<div class="sub">${esc(x.closedNote)}</div>`:""}</td>
+      <td style="white-space:nowrap">${delegActions(x)}</td></tr>`).join("")}
+    </tbody></table>`;
+  }
+  if(xl.length){
+    h += `<div class="hl" style="margin-top:18px">LINQE PËR TË JASHTËM (${xl.length})</div><div style="display:grid;gap:10px">
+    ${xl.map(x=>{
+      const used=!!x.used, expired=!used && x.expires && x.expires.getTime()<Date.now();
+      const st = used?`<span class="tag closed">përdorur</span>`:expired?`<span class="tag late">skaduar</span>`:`<span class="tag in">aktiv</span>`;
+      return `<div class="box" style="margin:0">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <b>${esc(x.name||"i jashtëm")}</b> ${st}
+          <span class="sm" style="color:var(--muted)">lëshuar ${x.created||""} · skadonte ${x.expiresD||"—"}</span>
+          ${!used&&!expired?`<span style="flex:1"></span><button class="pill" onclick="copyText('${SITE_URL}#/link/${x.token}',this)">Kopjo linkun</button>`:""}
+        </div>
+        ${x.note?`<div class="sub" style="margin-top:6px">${esc(x.note)}</div>`:""}
+        ${used?`<div class="sub" style="margin-top:6px">✓ plotësuar më ${x.used}</div>
+          ${x.sig?`<img src="${x.sig}" alt="firma" style="max-height:64px;margin-top:6px;border:1px solid var(--line);border-radius:6px;background:#fff">`:""}`:""}
+      </div>`;}).join("")}</div>`;
+  }
+  return h;
+}
+/* ---- faqja «Përcjelljet për mua» ---- */
+function percjelljetPage(){
+  const me=S.profile&&S.profile.id;
+  const my=myDeleg();
+  const act=my.filter(x=>x.status==="ne_pritje"||x.status==="ne_trajtim");
+  const fin=my.filter(x=>x.status==="mbyllur"||x.status==="anuluar");
+  const sent=(S.data.deleg||[]).filter(x=>x.from===me && x.to!==me);
+  const head=`<tr><th>Protokolli</th><th>Nga</th><th>Marrësi</th><th>Afati</th><th>Statusi</th><th></th></tr>`;
+  shellRender("per",[{t:"Arkiva",h:"#/"},{t:"Përcjelljet për mua"}],`
+   <div class="toolbar"><h2>Përcjelljet për mua ${act.length?`<span class="tag in">${act.length} aktive</span>`:""}</h2></div>
+   ${act.length?`<table class="tbl"><thead>${head}</thead><tbody>${act.map(delegRow).join("")}</tbody></table>`:`<div class="empty" style="margin:0;border-radius:0">S'ka përcjellje aktive për ty. Këtu shfaqen dokumentet që kolegët të delegojnë për trajtim.</div>`}
+   ${fin.length?`<div class="toolbar" style="border-top:1px solid var(--line)"><h2>Mbyllur / anuluar (${fin.length})</h2></div>
+   <table class="tbl"><thead>${head}</thead><tbody>${fin.map(delegRow).join("")}</tbody></table>`:""}
+   ${sent.length?`<div class="toolbar" style="border-top:1px solid var(--line)"><h2>Dërguara nga unë (${sent.length})</h2></div>
+   <table class="tbl"><thead>${head}</thead><tbody>${sent.map(delegRow).join("")}</tbody></table>`:""}
+   <div style="padding:16px 22px"><a href="#/" class="pill">← Kryefaqja</a></div>`);
+}
+/* ---- modal-i «Përcill te…» ---- */
+let DM_CD = null;
+function delegCloseModal(){
+  document.querySelectorAll(".mbg").forEach(m=>m.remove());
+  if(DM_CD){ clearInterval(DM_CD); DM_CD=null; }
+}
+function delegModal(docId){
+  const d=docById(docId); if(!d) return;
+  if(!S.session || !S.session.user) return;
+  delegCloseModal();
+  const secs=(S.data.sectors||[]).filter(s=>s.active!==false);
+  const staf=(S.data.users||[]).filter(u=>u.active);
+  const div=document.createElement("div"); div.className="mbg"; div.id="dlgPercill";
+  div.innerHTML=`<div class="mcard">
+    <div style="display:flex;align-items:center;gap:10px">
+      <h2 style="margin:0;font-size:19px;flex:1">➤ Përcill dokumentin ${esc(d.proto)}</h2>
+      <button class="pill" onclick="delegCloseModal()">✕</button>
+    </div>
+    <p class="sm" style="color:var(--muted);margin:6px 0 12px">${esc(d.subject||"")}</p>
+    <div class="xtabs" style="display:flex;gap:6px;margin:4px 0 14px;flex-wrap:wrap" id="dm-tabs">
+      <button type="button" class="pill on" data-t="sec" onclick="dmTab('sec')">Sektor</button>
+      <button type="button" class="pill" data-t="usr" onclick="dmTab('usr')">Person i stafit</button>
+      <button type="button" class="pill" data-t="ext" onclick="dmTab('ext')">I jashtëm · link 60 min</button>
+    </div>
+    <div id="dm-sec">
+      <label class="fk">Sektori përgjegjës</label>
+      <select id="dm-sec-sel">
+        ${secs.length?secs.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join(""):`<option value="">— s'ka sektorë —</option>`}
+        <option value="__new">✚ Sektor i re…</option>
+      </select>
+      <div id="dm-sec-new" style="display:none;margin-top:8px">
+        <input id="dm-sec-name" class="full-in" placeholder="Emri i sektorit (p.sh. Sekretaria)">
+      </div>
+    </div>
+    <div id="dm-usr" style="display:none">
+      <label class="fk">Personi i stafit (i dërgohet email automatikisht)</label>
+      <select id="dm-usr-sel">
+        ${staf.map(u=>`<option value="${u.id}">${esc(u.full_name||"përdorues")}</option>`).join("")}
+      </select>
+    </div>
+    <div id="dm-ext" style="display:none">
+      <label class="fk">Emri i të jashtmit (opsional — vetëm si etiketë)</label>
+      <input id="dm-xname" class="full-in" placeholder="P.sh. Avokat Ahmeti">
+      <p class="sm" style="color:var(--muted);margin:8px 0 0">Krijohet një link i sigurt që hapet <b>vetëm një herë</b>, pa llogari, dhe skadon pas <b>60 minutash</b>. I jashtmi sheh vetëm përmbledhjen e dokumentit, plotëson shënimin e vet dhe firmos.</p>
+    </div>
+    <div id="dm-due-w">
+      <label class="fk">Afati i trajtimit (opsional)</label>
+      <input type="date" id="dm-due" class="full-in">
+    </div>
+    <label class="fk">Shënimi i përcjelljes</label>
+    <textarea id="dm-note" rows="2" placeholder="Shënim i përcjelljes (opsional)"></textarea>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn line" style="flex:1" onclick="delegCloseModal()">Anulo</button>
+      <button class="btn red" style="flex:1" id="dm-go" onclick="dmGo('${docId}')">Përcill →</button>
+    </div>
+  </div>`;
+  document.body.appendChild(div);
+  const sel=document.getElementById("dm-sec-sel");
+  if(sel) sel.addEventListener("change",()=>{ const nw=document.getElementById("dm-sec-new"); if(nw) nw.style.display = sel.value==="__new"?"block":"none"; });
+  div.addEventListener("click",e=>{ if(e.target===div) delegCloseModal(); });
+}
+function dmTab(t){
+  document.querySelectorAll("#dm-tabs .pill").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
+  ["sec","usr","ext"].forEach(k=>{
+    const el=document.getElementById("dm-"+k); if(el) el.style.display=k===t?"block":"none";
+  });
+  const dw=document.getElementById("dm-due-w"); if(dw) dw.style.display=t==="ext"?"none":"block";
+  const nb=document.getElementById("dm-note");
+  if(nb) nb.placeholder = t==="ext" ? "Shënim për të jashtmin (shfaqet te faqja e link-ut)" : "Shënim i përcjelljes (opsional)";
+  const go=document.getElementById("dm-go"); if(go) go.textContent = t==="ext" ? "Krijo linkun e sigurt →" : "Përcill →";
+}
+async function dmGo(docId){
+  const tEl=document.querySelector("#dm-tabs .pill.on"); if(!tEl) return;
+  const t=tEl.dataset.t;
+  const note=(document.getElementById("dm-note").value||"").trim();
+  const dueEl=document.getElementById("dm-due");
+  const due=(t!=="ext" && dueEl && dueEl.value)?dueEl.value:null;
+  const d=docById(docId); if(!d) return;
+  if(t==="sec"){
+    let sel=document.getElementById("dm-sec-sel").value, sid=null;
+    if(sel==="__new"){
+      const nm=(document.getElementById("dm-sec-name").value||"").trim();
+      if(!nm) return toast("Shkruani emrin e sektorit.");
+      const {data,error}=await sb.from("sectors").insert({name:nm}).select().single();
+      if(error) return toast(error.message);
+      sid=data.id;
+    } else if(sel){ sid=sel; } else return toast("S'ka sektorë të regjistruara — krijo një të re.");
+    const {error}=await sb.from("delegations").insert({document_id:docId, from_user:S.session.user.id, to_sector:sid, note:note||null, due_date:due});
+    if(error) return toast(error.message);
+    toast("Dokumenti u përcoll te sektori"); delegCloseModal(); await refresh(); docPage(docId);
+  } else if(t==="usr"){
+    const uid=document.getElementById("dm-usr-sel").value;
+    if(!uid) return toast("Zgjidh personin e stafit.");
+    if(uid===S.profile.id && !confirm("Po i përcjell dokumentin VETES — vazhdo?")) return;
+    const {error}=await sb.from("delegations").insert({document_id:docId, from_user:S.session.user.id, to_user:uid, note:note||null, due_date:due});
+    if(error) return toast(error.message);
+    toast("Dokumenti u përcoll — personit i dërgohet email njoftimi"); delegCloseModal(); await refresh(); docPage(docId);
+  } else {
+    const nm=(document.getElementById("dm-xname").value||"").trim();
+    const {data,error}=await sb.from("external_links").insert({document_id:docId, created_by:S.session.user.id, name:nm||null, note:note||null}).select().single();
+    if(error) return toast(error.message);
+    dmShowLink(SITE_URL+"#/link/"+data.token, data.expires_at, docId);
+  }
+}
+function dmShowLink(url, exp, docId){
+  const card=document.querySelector("#dlgPercill .mcard"); if(!card) return;
+  card.innerHTML=`<h2 style="margin:0 0 6px;font-size:19px">✓ Linku u krijua</h2>
+   <p class="sm" style="color:var(--muted)">Dërgojai të jashtmit këtë adresë (SMS, WhatsApp, email). Linku hapet <b>vetëm një herë</b>, s'ka nevojë për llogari, dhe skadon pas <b>60 minutash</b>.</p>
+   <div class="hash" style="margin:10px 0;font-size:11px">${esc(url)}</div>
+   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+     <button class="btn red" onclick="copyText('${url}',this)">Kopjo linkun</button>
+     <span class="sm">Skadon pas <b id="dm-cd">—</b></span>
+   </div>
+   <button class="btn line" style="margin-top:14px;width:100%" onclick="dmDone('${docId}')">Mbyll dhe kthehu te dokumenti</button>`;
+  const end=new Date(exp).getTime();
+  const tick=()=>{
+    const el=document.getElementById("dm-cd"); if(!el) return;
+    const s=Math.floor((end-Date.now())/1000);
+    if(s<=0){ el.textContent="skadoi"; if(DM_CD){clearInterval(DM_CD);DM_CD=null;} return; }
+    el.textContent=Math.floor(s/60)+" min "+String(s%60).padStart(2,"0")+" s";
+  };
+  tick(); DM_CD=setInterval(tick,1000);
+}
+async function dmDone(docId){
+  delegCloseModal(); await refresh();
+  if(location.hash==="#/dokument/"+docId) docPage(docId); else route();
+}
+async function copyText(txt,btn){
+  try{ await navigator.clipboard.writeText(txt); if(btn){ const t=btn.textContent; btn.textContent="✓ u kopjua"; setTimeout(()=>{btn.textContent=t;},1600); } }
+  catch(_){ toast("Kopjo manualisht: "+txt); }
+}
+/* ---- veprimet e statusit ---- */
+async function delegPrano(id){
+  const x=(S.data.deleg||[]).find(y=>y.id===id);
+  const patch={status:"ne_trajtim", accepted_at:new Date().toISOString()};
+  if(x && !x.to) patch.to_user = S.profile.id;   /* delegimi i sektorit: kush e merr në trajtim bëhet përgjegjës */
+  const {error}=await sb.from("delegations").update(patch).eq("id",id);
+  if(error) return toast(error.message);
+  toast("Trajtimi u pranua — statusi: Në trajtim");
+  await refresh(); route();
+}
+async function delegAnulo(id){
+  if(!confirm("Anulohet përcjellja? (Historiku i gjurmimit ruhet.)")) return;
+  const {error}=await sb.from("delegations").update({status:"anuluar"}).eq("id",id);
+  if(error) return toast(error.message);
+  toast("Përcjellja u anulua");
+  await refresh(); route();
+}
+function delegMbyll(id){
+  delegCloseModal();
+  const x=(S.data.deleg||[]).find(y=>y.id===id); if(!x) return;
+  const div=document.createElement("div"); div.className="mbg"; div.id="dlgMbyll";
+  div.innerHTML=`<div class="mcard">
+    <h2 style="margin:0 0 6px;font-size:19px">Mbyll trajtimin</h2>
+    <p class="sm" style="color:var(--muted)">${esc((docById(x.doc)||{}).proto||"")} → ${esc(delegTarget(x))}</p>
+    <label class="fk">Shënimi i mbylljes (opsional)</label>
+    <textarea id="mb-note" rows="3" placeholder="Çfarë u bë me dokumentin…"></textarea>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn line" style="flex:1" onclick="delegCloseModal()">Anulo</button>
+      <button class="btn red" style="flex:1" onclick="delegMbyllGo('${id}')">✓ Mbyll trajtimin</button>
+    </div></div>`;
+  document.body.appendChild(div);
+  div.addEventListener("click",e=>{ if(e.target===div) delegCloseModal(); });
+}
+async function delegMbyllGo(id){
+  const note=(document.getElementById("mb-note").value||"").trim();
+  const {error}=await sb.from("delegations").update({status:"mbyllur", closed_at:new Date().toISOString(), closed_note:note||null}).eq("id",id);
+  if(error) return toast(error.message);
+  toast("Trajtimi u mbyll"); delegCloseModal(); await refresh(); route();
+}
+/* ============================================================
+   FAZA 2 · FAQJA PUBLIKE #/link/<token> — për të jashtmit pa llogari
+   ============================================================ */
+let PL = { exp:null, t:null, dirty:false, token:null };
+async function publicLinkPage(token){
+  PL.token=token; PL.dirty=false; PL.exp=null;
+  if(PL.t){ clearInterval(PL.t); PL.t=null; }
+  const app=$("#app");
+  app.innerHTML=`<div class="authbg"><div class="authcard" style="max-width:560px;text-align:left">
+    <div class="seal">ARK</div>
+    <h1 style="font-size:21px;text-align:center">ARKIVA ELEKTRONIKE</h1>
+    <p class="sub" style="text-align:center">Delegim për të jashtëm · pa llogari</p>
+    <div id="pl-body" style="margin-top:14px"><p class="sm" style="text-align:center;color:var(--muted)">Po verifikohet link-u…</p></div>
+  </div></div>`;
+  let r=null;
+  try{
+    r=await fetch(SUPABASE_URL+"/functions/v1/delegim-jashtme?token="+encodeURIComponent(token),{headers:{apikey:SUPABASE_KEY}});
+  }catch(_){ return plErr("S'lidhet me serverin. Kontrollo internetin dhe rifresko faqen."); }
+  let j=null; try{ j=await r.json(); }catch(_){}
+  if(!r.ok || !j || !j.ok) return plErr((j&&j.gabim)||("Gabim "+r.status));
+  plForm(j.doc, j.expires_at);
+}
+function plErr(msg){
+  const b=document.getElementById("pl-body"); if(!b) return;
+  b.innerHTML=`<div class="notice bad authmsg">${esc(msg)}</div>
+   <p class="sm" style="text-align:center;color:var(--muted)">Kërko një link të re nga institucioni që ta dërgoi dokumentin.</p>`;
+}
+function plForm(d, exp){
+  PL.exp=new Date(exp).getTime();
+  const b=document.getElementById("pl-body");
+  b.innerHTML=`
+   <div class="box" style="margin:0 0 14px;text-align:left">
+     <div class="hl" style="margin:0 0 8px">DOKUMENTI I PËRCJELLË</div>
+     <dl class="kv" style="margin:0">
+       <dt>Protokolli</dt><dd>${esc(d.proto||"—")}</dd>
+       <dt>Data</dt><dd>${esc(d.date||"—")}</dd>
+       ${d.from?`<dt>Nga</dt><dd>${esc(d.from)}</dd>`:""}
+       <dt>Lënda</dt><dd>${esc(d.subject||"—")}</dd>
+     </dl>
+   </div>
+   <div class="notice warn" style="margin:0 0 14px;font-size:13px">Ky link hapet <b>vetëm një herë</b> dhe skadon pas <b id="pl-cd">—</b>. Shihni përmbledhjen, plotësoni shënimin tuaj dhe firmosni.</div>
+   <form onsubmit="plSubmit(event)">
+     <label>Emri yt *</label><input name="xname" required placeholder="Emër Mbiemër" autocomplete="name">
+     <label>Shënimi yt *</label><textarea name="xnote" rows="3" required placeholder="P.sh. pranuar, do përgjigjem brenda afatit…"></textarea>
+     <label>Firma *</label>
+     <canvas id="plsig" class="sigcv" width="440" height="130"></canvas>
+     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+       <button type="button" class="pill" onclick="plClear()">Pastro firmën</button>
+       <span class="sm" style="color:var(--muted)">vizatoni me miun ose me gisht</span>
+     </div>
+     <button class="btn red" type="submit" style="width:100%;margin-top:14px">Firmos dhe dërgo →</button>
+   </form>`;
+  plSigInit();
+  plTick(); if(PL.t) clearInterval(PL.t); PL.t=setInterval(plTick,1000);
+}
+function plSigInit(){
+  const cv=document.getElementById("plsig"); if(!cv) return;
+  const ctx=cv.getContext("2d");
+  ctx.lineWidth=2.4; ctx.lineCap="round"; ctx.lineJoin="round"; ctx.strokeStyle="#16181f";
+  ctx.clearRect(0,0,cv.width,cv.height);
+  let draw=false;
+  const pos=e=>{ const r=cv.getBoundingClientRect(); return [(e.clientX-r.left)*cv.width/r.width,(e.clientY-r.top)*cv.height/r.height]; };
+  cv.onpointerdown=e=>{ draw=true; const p=pos(e); ctx.beginPath(); ctx.moveTo(p[0],p[1]); try{cv.setPointerCapture(e.pointerId);}catch(_){} e.preventDefault(); };
+  cv.onpointermove=e=>{ if(!draw) return; const p=pos(e); ctx.lineTo(p[0],p[1]); ctx.stroke(); PL.dirty=true; };
+  cv.onpointerup=cv.onpointercancel=()=>{ draw=false; };
+}
+function plClear(){
+  const cv=document.getElementById("plsig"); if(!cv) return;
+  cv.getContext("2d").clearRect(0,0,cv.width,cv.height); PL.dirty=false;
+}
+function plTick(){
+  const el=document.getElementById("pl-cd"); if(!el) return;
+  if(!PL.exp){ el.textContent="—"; return; }
+  const s=Math.floor((PL.exp-Date.now())/1000);
+  if(s<=0){
+    if(PL.t){ clearInterval(PL.t); PL.t=null; }
+    el.textContent="skadoi";
+    plErr("Ky link ka skaduar (afati ishte 60 minuta). Kërkoni një link të re.");
+    return;
+  }
+  el.textContent=Math.floor(s/60)+" min "+String(s%60).padStart(2,"0")+" s";
+}
+async function plSubmit(e){
+  e.preventDefault();
+  const f=e.target;
+  const name=(f.elements["xname"].value||"").trim();
+  const note=(f.elements["xnote"].value||"").trim();
+  const cv=document.getElementById("plsig");
+  if(!PL.dirty) return toast("Vizatoni firmën tuaj në kutinë e bardhë.");
+  let sig=""; try{ sig=cv?cv.toDataURL("image/png"):""; }catch(_){}
+  const btn=f.querySelector('button[type="submit"]');
+  btn.disabled=true; btn.textContent="Po dërgohet…";
+  let r=null;
+  try{
+    r=await fetch(SUPABASE_URL+"/functions/v1/delegim-jashtme?token="+encodeURIComponent(PL.token),{
+      method:"POST",
+      headers:{apikey:SUPABASE_KEY,"content-type":"application/json"},
+      body:JSON.stringify({name,note,signature:sig})
+    });
+  }catch(_){ btn.disabled=false; btn.textContent="Firmos dhe dërgo →"; return toast("S'lidhet me serverin — provo përsëri."); }
+  let j=null; try{ j=await r.json(); }catch(_){}
+  if(!r.ok || !j || !j.ok){
+    btn.disabled=false; btn.textContent="Firmos dhe dërgo →";
+    return plErr((j&&j.gabim)||("Gabim "+r.status));
+  }
+  if(PL.t){ clearInterval(PL.t); PL.t=null; }
+  const b=document.getElementById("pl-body");
+  b.innerHTML=`<div class="notice ok authmsg">✓ Faleminderit, ${esc(name)}! Shënimi dhe firma juaj u regjistruan.</div>
+   <p class="sm" style="text-align:center;color:var(--muted)">Ky link tani është i përdorur dhe s'mund të hapet më. Nëse duhet të shtoni diçka, kërkoni nga institucioni një link të re.</p>`;
+}
+
 function docPage(id){
   const d = docById(id); if(!d) return notFound();
   const c = caseOf(d.case)||{no:"—",id:"",title:"",loc:""};
@@ -1038,6 +1464,7 @@ function docPage(id){
     </div>
     <div class="info">
       <h1 class="qt">${esc(d.proto)}</h1>
+      ${delegActive(d.id).length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin:-2px 0 12px">${delegActive(d.id).map(delegBadge).join("")}</div>`:""}
       ${d.conf?`<div class="notice warn" style="margin:0 0 12px">🔒 KONFIDENCIALE — dokument me fletë konfidencialiteti</div>`:""}
       <dl class="kv">
         <dt>Nr.</dt><dd>${esc(d.proto)}<div class="sub">dokumenti <b>#${d.idx||"—"}</b> i dosjes</div></dd>
@@ -1066,9 +1493,11 @@ function docPage(id){
       <button class="btn line" onclick="downloadDoc('${d.id}',true)">${ico.dl} Hap në skedë të re</button>`:""}
       ${d.sha?`<div class="hl" style="margin-top:14px">SHA-256 (për të verifikuar që dokumenti nuk është ndryshuar)</div><div class="hash">${esc(d.sha)}</div>`:""}
       ${can("ndrysho")?`<button class="btn line" onclick="location.hash='#/ndrysho/${d.id}'">✎ Ndrysho të dhënat</button>`:""}
-      ${can("fshi")?`<button class="btn line" style="color:var(--bad);border-color:var(--bad)" onclick="deleteDoc('${d.id}')">✕ Fshi dokumentin</button>`:""}`}
+      ${can("fshi")?`<button class="btn line" style="color:var(--bad);border-color:var(--bad)" onclick="deleteDoc('${d.id}')">✕ Fshi dokumentin</button>`:""}
+      ${can("regjistro")?`<button class="btn line" onclick="delegModal('${d.id}')">➤ Përcill te…</button>`:""}`}
       ${d.kind==="kërkesë" && reqOpen(d) ? `<div class="box ${late?"late":""}"><b>Kërkesë pa përgjigje</b><div class="sub" style="margin-top:4px">${late?"Afati ka kaluar.":"Lidhni përgjigjen për ta mbyllur kërkesën."}</div>
         ${can("regjistro")?`<button class="btn line" style="margin-top:10px;margin-bottom:0" onclick="location.hash='#/regjistro?case=${d.case}&dir=dalje&kind=përgjigje&reply=${d.id}'">Regjistro përgjigjen</button>`:""}</div>`:""}
+      ${delegBox(d)}
     </div>
   </div>`);
   if(d.path) embedPdf(d.id);
@@ -2241,6 +2670,7 @@ function livePing(){
     /* mos i prish format që po plotësohen */
     if(document.getElementById("regf") || document.getElementById("editf") || document.getElementById("srcf")) return;
     if(!S.session || !S.profile || !S.profile.active) return;
+    if(/^#\/link\//.test(location.hash||"")) return;   /* mos e prish faqen publike të të jashtmit */
     await refresh();
     route();
   },500);
@@ -2248,6 +2678,7 @@ function livePing(){
 
 /* ---------- router ---------- */
 function route(){
+  if((location.hash||"").startsWith("#/link/")) return publicLinkPage(decodeURIComponent((location.hash||"").split("/")[2]||""));   /* faqja publike e delegimit — pa hyrje */
   if(!S.session || !S.profile || !S.profile.active) return;   /* roja e hyrjes */
   const h = location.hash||"#/";
   const [path,qs] = h.split("?");
@@ -2260,6 +2691,7 @@ function route(){
   if(path.startsWith("#/libri")) return libriPage(params);
   if(path.startsWith("#/dosjet")) return casesPage(params);
   if(path.startsWith("#/kerkesat")) return requestsPage(params);
+  if(path.startsWith("#/percjelljet")) return percjelljetPage();
   if(path.startsWith("#/kerko")) return searchPage(params);
   if(path.startsWith("#/gjurmimi")) return logPage();
   if(path.startsWith("#/regjistro")) return registerPage(params);
