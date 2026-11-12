@@ -6,6 +6,7 @@
 <title>Arkiva · Protokolli dhe dosjet</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="pdf-lib.min.js"></script>
 <style>
 :root{--red:#b3141b;--red2:#8a0d13;--red3:#d8232a;--ink:#1d1d1f;--muted:#6e6e73;--line:#e5e5ea;--bg:#f5f5f7;--ok:#1f7a3d;--okbg:#e6f4ea;--warn:#8a5a00;--warnbg:#fff4df;--bad:#a4161a;--badbg:#fdeaea}
 *{box-sizing:border-box}
@@ -80,6 +81,85 @@ button,input,select{font:inherit}
 .tag.late{background:var(--badbg);color:var(--bad)}
 .tag.in{background:#e8f0fe;color:#1a4fb4}.tag.out{background:#f3e8ff;color:#6b21a8}
 .empty{padding:50px;text-align:center;color:var(--muted)}
+
+/* libri i protokollit */
+.book{background:#fff;border:1px solid #d9dce3;box-shadow:0 10px 30px rgba(20,24,40,.08);border-radius:10px;overflow:auto;margin:18px 22px 30px}
+.book .bhead{padding:22px 26px 14px;text-align:center;border-bottom:3px double #b9bfcf}
+.book .bhead h2{font-size:19px;letter-spacing:.14em;color:#1c2333}
+.book .bhead .bsub{color:var(--muted);font-size:12.5px;margin-top:5px;letter-spacing:.04em}
+.book table{width:100%;border-collapse:collapse;min-width:1100px}
+.book th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#333c52;background:#f4f5f9;border:1px solid #dfe3ec;padding:9px 10px;text-align:left;white-space:nowrap}
+.book td{font-size:13px;border:1px solid #e3e6ee;padding:9px 10px;vertical-align:top}
+.book tr:nth-child(even) td{background:#fafbfd}
+.book tr:hover td{background:#fff9f9}
+.book .proto{font-weight:700;white-space:nowrap}
+.tagline{font-size:10.5px;padding:1px 8px;border-radius:999px;font-weight:700;letter-spacing:.05em}
+.tagline.h{background:#e8f0fe;color:#1a4fb4}
+.tagline.d{background:#f3e8ff;color:#6b21a8}
+.booktools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:16px 22px 0}
+.booktabs{display:flex;gap:6px;margin-right:auto;flex-wrap:wrap}
+.booktabs a{padding:8px 14px;border:1px solid var(--line);border-radius:999px;font-size:13px;text-decoration:none;color:#3a3f4b;background:#fff}
+.booktabs a.on{background:#1c2333;color:#fff;border-color:#1c2333}
+.printdate{display:none}
+@page{size:A4 landscape;margin:11mm}
+/* ===== Detyra 10 · forma «Protokollo një dokument» ===== */
+.req{color:var(--bad);font-weight:800}
+.rghero{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:4px 0 8px}
+@media (max-width:900px){.rghero{grid-template-columns:1fr}}
+.autobox{border:1.5px dashed #c9c9d4;background:#fff;border-radius:10px;padding:10px 14px}
+.autobox .ab-l{font-size:10.5px;font-weight:800;letter-spacing:.9px;color:var(--muted)}
+.autobox .ab-v{font-size:19px;font-weight:800;color:var(--red);margin-top:2px;font-family:Georgia,"Times New Roman",serif;letter-spacing:.4px}
+.autobox .ab-s{font-size:11.5px;color:var(--muted);margin-top:4px}
+.seg{display:flex;gap:8px;flex-wrap:wrap}
+.seg label{border:1px solid #d6d6dc;background:#fff;border-radius:8px;padding:8px 13px;cursor:pointer;font-weight:600;display:inline-flex;gap:6px;align-items:center;font-size:13px}
+.seg label:has(input:checked){border-color:var(--red);background:#fdf1f1;color:var(--red);box-shadow:inset 0 0 0 1px var(--red)}
+.seg input{accent-color:var(--red);margin:0}
+.dupline{border:1px solid var(--line);background:#fafafa;color:var(--muted);border-radius:8px;padding:9px 12px;font-size:12.5px;margin-top:6px}
+.dupline a{font-weight:700}
+.dupline.ok{border-color:#bfe3c8;background:var(--okbg);color:var(--ok)}
+.dupline.warn{border-color:#e8c98c;background:var(--warnbg);color:var(--warn)}
+.dupconf{display:flex;gap:8px;align-items:flex-start;margin-top:8px;color:var(--ink);font-weight:600;cursor:pointer}
+.btnqs{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.btnq{border:1px solid #d6d6dc;border-radius:7px;background:#fff;padding:5px 10px;cursor:pointer;font-size:12px;font-weight:700;color:var(--ink)}
+.btnq:hover{border-color:var(--red);color:var(--red)}
+.switch{position:relative;display:inline-flex;gap:10px;align-items:center;cursor:pointer;font-weight:600;padding:6px 0}
+.switch .sw{width:40px;height:22px;border-radius:20px;background:#d6d6dc;position:relative;transition:background .15s;flex:none}
+.switch .sw::after{content:"";position:absolute;top:2.5px;left:3px;width:17px;height:17px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.switch input{position:absolute;inset:0;width:100%;height:100%;opacity:0;margin:0;cursor:pointer}
+.switch input:checked ~ .sw{background:var(--red)}
+.switch input:checked ~ .sw::after{left:20px}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:7px}
+.chip{border:1px solid #d6d6dc;background:#fff;border-radius:20px;padding:5px 13px;cursor:pointer;font-size:12.5px;font-weight:700;color:var(--ink)}
+.chip:hover{border-color:var(--red)}
+.chip.on{background:var(--red);color:#fff;border-color:var(--red)}
+.docsrc{display:flex;gap:10px;flex-wrap:wrap}
+.filebtn{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.cambox{margin-top:12px;border:1px solid var(--line);border-radius:10px;padding:12px;background:#fafafa}
+.cambox video{width:100%;max-width:560px;border-radius:8px;background:#000;display:block}
+.camrow{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
+.pagestrip{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.thumb{position:relative;width:86px}
+.thumb img{width:86px;height:110px;object-fit:cover;border-radius:6px;border:1px solid var(--line);display:block;background:#fff}
+.thumb span{position:absolute;bottom:4px;left:4px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;padding:1px 6px;border-radius:4px}
+.thumb button{position:absolute;top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;border:0;background:var(--bad);color:#fff;cursor:pointer;font-size:11px;line-height:1;padding:0}
+.thumb button:hover{background:var(--red2)}
+.pdfchip{margin-top:12px;display:inline-flex;gap:9px;align-items:center;border:1px solid var(--line);background:#fafafa;padding:8px 13px;border-radius:8px;font-size:13px}
+.pdfchip button{border:0;background:none;color:var(--bad);cursor:pointer;font-weight:800;padding:0 2px}
+.sigrow{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
+#sigc{border:1.5px dashed #b9b9c6;border-radius:10px;background:#fff;touch-action:none;cursor:crosshair;max-width:100%}
+.tag.br{background:#e9f7ee;color:#1e6b3c}
+.tagline.b{background:#e9f7ee;color:#1e6b3c}
+@media print{
+  body{background:#fff!important}
+  .side,.crumbs,.footer,.booktools,.no-print{display:none!important}
+  .wrap{display:block!important;padding:0!important;margin:0!important}
+  .main{width:100%!important;padding:0!important}
+  .book{box-shadow:none;border:1.5pt solid #333;border-radius:0;margin:0}
+  .book .bhead{border-bottom:2pt solid #333}
+  .book td,.book th{border-color:#999!important}
+  .book tr:nth-child(even) td{background:#fff!important}
+  .printdate{display:block}
+}
 
 /* document page */
 .docwrap{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:0}
@@ -319,7 +399,8 @@ function mapDoc(r){ return {
   id:r.id, case:r.case_id, dir:r.direction||"hyrje", kind:r.kind||"dokument", proto:r.protocol_no||"—",
   date:fmtD(r.doc_date), from:r.from_to||"", subject:r.subject||"", due:r.due_date?fmtD(r.due_date):"",
   size:kb(r.size_bytes), file:base(r.storage_path), sha:r.sha256||"", ocr:r.ocr_text||"", path:r.storage_path||null,
-  mime:r.mime||"", deleted:!!r.deleted_at, idx:0
+  docNo:r.doc_no||"", rem:r.remarks||"", regTs:r.created_at||"", mime:r.mime||"", deleted:!!r.deleted_at, idx:0,
+  ch:r.channel||"", sref:r.sender_ref||"", conf:!!r.confidential, ret:r.retention_class||"", ploc:r.physical_location||"", labels:r.labels||"", inote:r.internal_note||""
 };}
 async function refresh(){
   const [cs,co,li,lg,kt] = await Promise.all([
@@ -514,13 +595,14 @@ function sidebar(active){
   const a=(k,label,n,href)=>`<a href="${href}" class="${active===k?"on":""}">${ico.folder}${label}<span class="n">${n}</span></a>`;
   return `<aside class="side">
     <div class="sh">Shfleto arkivin</div>
-    ${can("regjistro")?`<a href="#/regjistro" class="newlink ${active==="reg"?"on":""}">＋ Regjistro dokument</a>`:""}
+    ${can("regjistro")?`<a href="#/regjistro" class="newlink ${active==="reg"?"on":""}">＋ Protokollo dokument</a>`:""}
     <div class="sec">Dosjet</div>
     ${a("open","Dosje të hapura",open,"#/dosjet?s=hapur")}
     ${a("closed","Dosje të mbyllura",closed,"#/dosjet?s=mbyllur")}
     <div class="sec">Korrespondenca</div>
     ${a("in","Hyrje (protokolli H)",hyrje,"#/dosjet?d=hyrje")}
     ${a("out","Dalje (protokolli D)",dalje,"#/dosjet?d=dalje")}
+    <a href="#/libri" class="${active==="libri"?"on":""}">${ico.book}Libri i Protokollit</a>
     <div class="sec">Kontratat</div>
     ${a("kon","Kontratat",S.data.contracts.filter(k=>!k.deleted).length,"#/kontratat")}
     ${kj.n?`<a href="#/kontratat?k=1" class="${active==="kuj"?"on":""}">${ico.alert}Kujtesa (7 ditë)<span class="n" style="background:var(--badbg);color:var(--bad)">${kj.n}</span></a>`:""}
@@ -571,7 +653,7 @@ function home(){
       ${kj.pays.length>4?`<li class="sm"><a href="#/kontratat?k=1">… edhe ${kj.pays.length-4} pagesa të tjera →</a></li>`:""}
       ${kj.kontratat.slice(0,3).map(k=>`<li><span class="dot"></span><div><a href="#/kontrata/${k.id}">${esc(k.no)}</a> — skadon më ${k.endD}<div class="sm">${esc(k.title)}</div></div></li>`).join("")}
       </ul></div>`; })()}
-    <div class="toolbar"><h2>Kërkesa që presin përgjigje (${reqs.length})</h2><a href="#/kerkesat" class="pill">Shiko të gjitha →</a>${can("regjistro")?`<a href="#/regjistro" class="newbtn">＋ Regjistro dokument</a>`:`<span class="newbtn dis">＋ Regjistro dokument</span>`}</div>
+    <div class="toolbar"><h2>Kërkesa që presin përgjigje (${reqs.length})</h2><a href="#/kerkesat" class="pill">Shiko të gjitha →</a>${can("regjistro")?`<a href="#/regjistro" class="newbtn">＋ Protokollo dokument</a>`:`<span class="newbtn dis">＋ Protokollo dokument</span>`}</div>
     ${reqs.length? `<table class="tbl"><thead><tr><th>Protokolli</th><th>Lënda</th><th>Nga</th><th>Afati</th><th>Statusi</th></tr></thead><tbody>
     ${reqs.map(d=>`<tr><td><a href="#/dokument/${d.id}" class="t">${esc(d.proto)}</a></td><td>${esc(d.subject)}<div class="sub">${esc((caseOf(d.case)||{}).no||"")} · #${d.idx||"—"} në dosje</div></td>
       <td>${esc(d.from)}</td><td>${d.due||"—"}</td>
@@ -672,7 +754,7 @@ function searchPage(params){
     if(ku.includes("dok")) res += `<div class="toolbar"><h2>Dokumentet (${dok.length})</h2></div>` +
       (dok.length? `<table class="tbl"><thead><tr><th>Protokolli</th><th>Lloji</th><th>Lënda</th><th>Dosja</th><th>Data</th></tr></thead><tbody>
       ${dok.slice(0,CAP).map(d=>{const c=caseOf(d.case)||{};return `<tr><td><a href="#/dokument/${d.id}" class="t">${esc(d.proto)}</a><div class="sub">#${d.idx||"—"} në dosje</div></td>
-        <td><span class="tag ${d.dir==="hyrje"?"in":"out"}">${d.dir==="hyrje"?"Hyrje":"Dalje"}</span><div class="sub">${esc(d.kind)}</div></td>
+        <td><span class="tag ${d.dir==="hyrje"?"in":d.dir==="brendshme"?"br":"out"}">${d.dir==="hyrje"?"Hyrje":d.dir==="brendshme"?"Brendshme":"Dalje"}</span><div class="sub">${esc(d.kind)}</div></td>
         <td>${esc(d.subject)}<div class="sub">${esc(d.from)}</div></td>
         <td>${esc(c.no||"—")}</td><td>${d.date}</td></tr>`;}).join("")}</tbody></table>`
         :`<div class="empty">Asnjë dokument nuk përputhet me kërkimin.</div>`)+more(dok.length);
@@ -731,8 +813,8 @@ function casePage(id){
      <span class="tag ${c.status==="hapur"?"open":"closed"}">${c.status==="hapur"?"E hapur":"E mbyllur"}</span>
      <span style="flex:1"></span>
      ${c.status==="hapur"
-       ? (canWrite?`<a href="#/regjistro?case=${c.id}" class="newbtn">＋ Regjistro dokument</a>`:`<span class="newbtn dis">＋ Regjistro dokument</span>`)
-       :`<span class="newbtn dis" title="Dosja është e mbyllur">＋ Regjistro dokument</span>`}
+       ? (canWrite?`<a href="#/regjistro?case=${c.id}" class="newbtn">＋ Protokollo dokument</a>`:`<span class="newbtn dis">＋ Protokollo dokument</span>`)
+       :`<span class="newbtn dis" title="Dosja është e mbyllur">＋ Protokollo dokument</span>`}
    </div>
    <div style="padding:0 22px 22px">
     <dl class="kv" style="margin-top:16px">
@@ -801,7 +883,7 @@ function docsTable(ds){
   return `<table class="tbl"><thead><tr><th>Protokolli</th><th>Nr. në dosje</th><th>Lloji</th><th>Lënda</th><th>Data</th><th>Afati</th></tr></thead><tbody>
   ${ds.map(d=>`<tr><td><a href="#/dokument/${d.id}" class="t">${esc(d.proto)}</a></td>
     <td class="t">#${d.idx||"—"}<div class="sub">${esc((caseOf(d.case)||{}).no||"—")}</div></td>
-    <td><span class="tag ${d.dir==="hyrje"?"in":"out"}">${d.dir==="hyrje"?"Hyrje":"Dalje"}</span> <span class="sub">${esc(d.kind)}</span></td>
+    <td><span class="tag ${d.dir==="hyrje"?"in":d.dir==="brendshme"?"br":"out"}">${d.dir==="hyrje"?"Hyrje":d.dir==="brendshme"?"Brendshme":"Dalje"}</span> <span class="sub">${esc(d.kind)}</span></td>
     <td>${esc(d.subject)}<div class="sub">${esc(d.from)}</div></td><td>${d.date}</td>
     <td>${d.due?(isLate(d)?`<span class="tag late">${d.due}</span>`:d.due):"—"}</td></tr>`).join("")}</tbody></table>`;
 }
@@ -914,7 +996,7 @@ function docPage(id){
   const hist = S.data.log.filter(l=>l.dref===d.id);
   const li1 = t => `<li><span class="dot ${t.kind==="përgjigje"?"g":t.kind==="kërkesë"?"o":""}"></span><div>
     <a href="#/dokument/${t.id}">${esc(t.proto)}</a> <span class="sm">#${t.idx||"—"}</span>
-    <div class="sm">${esc(t.subject)}</div><div class="sm">${t.dir==="hyrje"?"Hyrje":"Dalje"} · ${t.date}</div></div></li>`;
+    <div class="sm">${esc(t.subject)}</div><div class="sm">${t.dir==="hyrje"?"Hyrje":t.dir==="brendshme"?"Brendshme":"Dalje"} · ${t.date}</div></div></li>`;
   /* ---- viewer: PDF i integruar (si QBZ) ose parapamja e regjistrit ---- */
   const isPdf = d.mime==="application/pdf" || /\.pdf$/i.test(d.file||"");
   const viewerHtml = d.path
@@ -956,11 +1038,19 @@ function docPage(id){
     </div>
     <div class="info">
       <h1 class="qt">${esc(d.proto)}</h1>
+      ${d.conf?`<div class="notice warn" style="margin:0 0 12px">🔒 KONFIDENCIALE — dokument me fletë konfidencialiteti</div>`:""}
       <dl class="kv">
         <dt>Nr.</dt><dd>${esc(d.proto)}<div class="sub">dokumenti <b>#${d.idx||"—"}</b> i dosjes</div></dd>
         <dt>Datë</dt><dd>${d.date}</dd>
+        ${d.docNo?`<dt>Nr. i dokumentit</dt><dd>${esc(d.docNo)}</dd>`:""}
+        ${d.ch?`<dt>Kanali</dt><dd>${esc(d.ch)}${d.sref?`<div class="sub">ref. ${esc(d.sref)}</div>`:""}</dd>`:""}
+        ${d.ret?`<dt>Afati i ruajtjes</dt><dd>${esc(RET_LABEL[d.ret]||d.ret)}</dd>`:""}
+        ${d.ploc?`<dt>Ruajtja fizike</dt><dd>${esc(d.ploc)}</dd>`:""}
+        ${d.labels?`<dt>Etiketa</dt><dd>${d.labels.split(",").map(t=>t.trim()).filter(Boolean).map(t=>`<span class="tag br">${esc(t)}</span>`).join(" ")}</dd>`:""}
+        ${d.inote?`<dt>Shënim i brendshëm</dt><dd>${esc(d.inote)}</dd>`:""}
+        ${d.rem?`<dt>Vërejtje</dt><dd>${esc(d.rem)}</dd>`:""}
         <dt>Titulli</dt><dd>${esc(d.subject)}</dd>
-        <dt>Lloji</dt><dd>${d.dir==="hyrje"?"Hyrje":"Dalje"} · ${esc(d.kind)}</dd>
+        <dt>Lloji</dt><dd>${d.dir==="hyrje"?"Hyrje":d.dir==="brendshme"?"Brendshme":"Dalje"} · ${esc(d.kind)}</dd>
         <dt>Nga / për</dt><dd>${esc(d.from)}</dd>
         <dt>Dosja</dt><dd><a href="#/dosje/${c.id}">${esc(c.no)} · ${esc(c.title)}</a></dd>
         <dt>Vendndodhja</dt><dd>${esc(c.loc||"—")}</dd>
@@ -986,7 +1076,7 @@ function docPage(id){
   if(lkin){
     new Combo("lk",{
       getItems:()=>docsOf(d.case).filter(x=>x.id!==d.id && x.id!==myReq && x.id!==myRep && !relDocs.some(t=>t.id===x.id))
-        .map(x=>({value:x.id,label:`${x.proto} · ${x.subject}`,sub:`${x.dir==="hyrje"?"Hyrje":"Dalje"} · #${x.idx||"—"}`})),
+        .map(x=>({value:x.id,label:`${x.proto} · ${x.subject}`,sub:`${x.dir==="hyrje"?"Hyrje":x.dir==="brendshme"?"Brendshme":"Dalje"} · #${x.idx||"—"}`})),
       onPick: async v=>{
         if(!v) return;
         const {error} = await sb.from("correspondence_links").insert({from_id:d.id, to_id:v, relation:"lidhur_me"});
@@ -1091,56 +1181,365 @@ class Combo{
 }
 
 let RG_CASE=null, RG_KIND=null, RG_REPLY=null;
+/* ============================================================
+   DETYRA 10 · «PROTOKOLLO NJË DOKUMENT» — formë e re moderne
+   • Numri i protokollit lëshohet VETËM në ruajtje (nga triggeri i DB-ës);
+     s'rezervohet dhe s'redaktohet kurrë — sekuenca mund të lëvizë nëse
+     regjistrohet një dokument tjetër më parë.
+   • Dokumenti: kamera (fotografim fletësh) ose PDF nga pajisja → montohen
+     në NJË PDF të vetme të pandryshueshme, e vulosur me numrin e protokollit,
+     bashkë me firmën e regjistruesit; ngarkohet pas insertimit me patch.
+   • Kontroll dublimit: i njëjti vit + e njëjta palë + i njëjti objekt.
+   ============================================================ */
+const RG_CHANNELS = ["","E-mail","Postë","Dorë","Faks","Telefonata","Tjetër"];
+const RG_CHIPS = ["urgjent","ankesë","leje","financiar","personal"];
+const RET_LABEL = {A:"Klasa A — ruhet pa afat (arkivim i përhershëm)", B:"Klasa B — ruhet 20 vjet", C:"Klasa C — ruhet 10 vjet"};
+let RGST = { photos:[], pdf:null, pdfName:"", sigDirty:false, cam:null, dupT:null };
+function rgReset(){
+  if(RGST){ (RGST.photos||[]).forEach(p=>URL.revokeObjectURL(p.url)); if(RGST.cam) RGST.cam.getTracks().forEach(t=>t.stop()); }
+  RGST = { photos:[], pdf:null, pdfName:"", sigDirty:false, cam:null, dupT:null };
+}
+const RG_ADD_DAYS = n => { const x=new Date(); x.setDate(x.getDate()+n); const p=v=>String(v).padStart(2,"0"); return `${x.getFullYear()}-${p(x.getMonth()+1)}-${p(x.getDate())}`; };
+let _pdlp = null;
+function ensurePDFLib(){
+  if(window.PDFLib) return Promise.resolve(true);
+  if(_pdlp) return _pdlp;
+  const srcs = ["pdf-lib.min.js",
+    "https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js",
+    "https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"];
+  _pdlp = new Promise(res=>{
+    let i=0;
+    const next = () => {
+      if(window.PDFLib){ res(true); return; }
+      if(i>=srcs.length){ _pdlp=null; res(false); return; }
+      const s=document.createElement("script");
+      s.src=srcs[i++];
+      s.onload=()=>{ window.PDFLib ? res(true) : next(); };
+      s.onerror=next;
+      document.head.appendChild(s);
+    };
+    next();
+  });
+  return _pdlp;
+}
+function rgCamStop(){
+  if(RGST && RGST.cam){ RGST.cam.getTracks().forEach(t=>t.stop()); RGST.cam=null; }
+  const v=document.getElementById("camview"); if(v) v.srcObject=null;
+}
+async function rgCamStart(){
+  const box=document.getElementById("camBox"), msg=document.getElementById("camMsg");
+  box.style.display=""; msg.style.color="";
+  msg.textContent="Po hapet kamera…";
+  rgCamStop();
+  try{
+    RGST.cam = await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment", width:{ideal:2048}, height:{ideal:1536}}, audio:false});
+    const v=document.getElementById("camview");
+    v.srcObject=RGST.cam;
+    await v.play();
+    msg.textContent="Vendosni fletën brenda kornizës dhe fotografoni sa herë nevojitet — çdo foto bëhet një faqe e PDF-së.";
+  }catch(e){
+    msg.style.color="var(--bad)";
+    msg.innerHTML="<b>Kamera s'u aksesua.</b> Lejojeni nga shfletuesi: klikoni ikonën e kamerës / prangave në shiritin e adresës → «Kamera» → «Lejo», pastaj hapeni sërish.";
+  }
+}
+async function rgShot(){
+  const v=document.getElementById("camview");
+  if(!v || !v.videoWidth){ toast("Kamera s'është hapur."); return; }
+  const c=document.createElement("canvas"); c.width=v.videoWidth; c.height=v.videoHeight;
+  c.getContext("2d").drawImage(v,0,0);
+  const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",.9));
+  if(!blob) return toast("Fotoja s'u krijua.");
+  RGST.photos.push({url:URL.createObjectURL(blob), blob, w:c.width, h:c.height});
+  rgThumbs();
+}
+function rgThumbs(){
+  const el=document.getElementById("thumbs"); if(!el) return;
+  el.innerHTML = RGST.photos.map((p,i)=>`<div class="thumb"><img src="${p.url}" alt="fleta ${i+1}"><span>${i+1}</span><button type="button" title="Hiq fletën" onclick="rgRemovePhoto(${i})">✕</button></div>`).join("");
+}
+function rgRemovePhoto(i){ RGST.photos.splice(i,1); rgThumbs(); }
+function rgRemovePdf(){ RGST.pdf=null; RGST.pdfName=""; const c=document.getElementById("pdfChip"); if(c) c.style.display="none"; }
+function rgSigInit(){
+  const c=document.getElementById("sigc"); if(!c) return;
+  const x=c.getContext("2d");
+  x.fillStyle="#fff"; x.fillRect(0,0,c.width,c.height);
+  x.lineWidth=2.6; x.lineCap="round"; x.lineJoin="round"; x.strokeStyle="#15181d";
+  let dr=false;
+  const pt=e=>{ const r=c.getBoundingClientRect(); return [(e.clientX-r.left)*c.width/r.width, (e.clientY-r.top)*c.height/r.height]; };
+  c.addEventListener("pointerdown",e=>{ e.preventDefault(); dr=true; RGST.sigDirty=true; const p=pt(e); x.beginPath(); x.moveTo(p[0],p[1]); try{c.setPointerCapture(e.pointerId);}catch(_){} });
+  c.addEventListener("pointermove",e=>{ if(!dr) return; const p=pt(e); x.lineTo(p[0],p[1]); x.stroke(); });
+  const end=()=>{ dr=false; };
+  c.addEventListener("pointerup",end); c.addEventListener("pointercancel",end); c.addEventListener("pointerleave",end);
+}
+function rgSigClear(){
+  const c=document.getElementById("sigc"); if(!c) return;
+  const x=c.getContext("2d"); x.fillStyle="#fff"; x.fillRect(0,0,c.width,c.height);
+  RGST.sigDirty=false;
+}
+/* tekst i sigurt për fontet standarde WinAnsi në PDF */
+const RG_W = t => String(t).replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"').replace(/\u2013/g,"-").replace(/\u2014/g,"—").replace(/\u2026/g,"...").replace(/[^\x00-\xFF—·]/g,"");
+
+/* montimi i PDF-së së vetme të vulosur: faqe PDF-je të pajisjes + foto + faqja e firmës */
+async function rgBuildPdf(proto, dir, f, cs){
+  const { PDFDocument, StandardFonts, rgb, degrees } = window.PDFLib;
+  const out = await PDFDocument.create();
+  out.setProducer("Arkiva Elektronike"); out.setCreator("Arkiva Elektronike");
+  out.setTitle(proto ? `Protokoll ${proto} — ${cs.no}` : `Dokument i brendshëm — ${cs.no}`);
+  const fB = await out.embedFont(StandardFonts.HelveticaBold);
+  const fR = await out.embedFont(StandardFonts.Helvetica);
+  const stampL1 = proto ? `NR. PROTOKOLLIT: ${proto}` : `NR. PROTOKOLLIT: I BRENDSHËM — PA NUMËR`;
+  const stampL2 = RG_W(`PRANUAR: ${fmtD(new Date().toISOString())} · KANALI: ${f.channel.value||"—"}`);
+  const conf = !!(f.conf && f.conf.checked);
+  /* faqet totale paraprakisht (për «Fletë n/N») */
+  let pdfPages=0; const srcs=[];
+  if(RGST.pdf){
+    const src = await PDFDocument.load(await RGST.pdf.arrayBuffer(), {ignoreEncryption:true});
+    srcs.push(src); pdfPages += src.getPageCount();
+  }
+  const total = pdfPages + RGST.photos.length + (RGST.sigDirty?1:0);
+  let pn=0;
+  const stamp = pg => {
+    pn++;
+    const w=pg.getWidth(), h=pg.getHeight();
+    const bw=262, bh=44, bx=Math.max(10, w-bw-10), by=h-bh-10;
+    pg.drawRectangle({x:bx, y:by, width:bw, height:bh, borderColor:rgb(.62,.09,.11), borderWidth:1.1, color:rgb(1,.985,.98)});
+    pg.drawText(stampL1, {x:bx+8, y:by+bh-16, size:9, font:fB, color:rgb(.62,.09,.11)});
+    pg.drawText(stampL2, {x:bx+8, y:by+bh-28, size:7, font:fR, color:rgb(.35,.35,.38)});
+    pg.drawText(`FLETË ${pn}/${total}`, {x:bx+8, y:by+bh-39, size:7, font:fR, color:rgb(.35,.35,.38)});
+    if(conf) pg.drawText("KONFIDENCIALE", {x:w/2-170, y:h/2, size:52, font:fB, color:rgb(.70,.10,.12), opacity:.16, rotate:degrees(34)});
+  };
+  /* a · faqet e PDF-së nga pajisja */
+  for(const src of srcs){
+    const pages = await out.copyPages(src, src.getPageIndices());
+    for(const p of pages){ const pg=out.addPage(p); stamp(pg); }
+  }
+  /* b · fotot (kamera ose nga pajisja) */
+  const A4W=595.28, A4H=841.89;
+  for(const ph of RGST.photos){
+    let jb = ph.blob;
+    if((jb.type||"")!=="image/jpeg"){
+      const bmp = await createImageBitmap(jb);
+      const cnv = document.createElement("canvas"); cnv.width=bmp.width; cnv.height=bmp.height;
+      cnv.getContext("2d").drawImage(bmp,0,0);
+      jb = await new Promise(r=>cnv.toBlob(r,"image/jpeg",.9));
+    }
+    const img = await out.embedJpg(await jb.arrayBuffer());
+    const pg = out.addPage([A4W, A4H]);
+    pg.drawRectangle({x:0, y:0, width:A4W, height:A4H, color:rgb(1,1,1)});
+    const sc = Math.min((A4W-64)/img.width, (A4H-110)/img.height, 1.6);
+    const iw=img.width*sc, ih=img.height*sc;
+    pg.drawImage(img, {x:(A4W-iw)/2, y:(A4H-ih)/2-14, width:iw, height:ih});
+    stamp(pg);
+  }
+  /* c · faqja e firmës */
+  if(RGST.sigDirty){
+    const pg = out.addPage([A4W, A4H]);
+    pg.drawRectangle({x:0, y:0, width:A4W, height:A4H, color:rgb(1,1,1)});
+    pg.drawText("DEKLARATA E PROTOKOLLIMIT", {x:A4W/2-125, y:A4H-160, size:14, font:fB, color:rgb(.18,.18,.2)});
+    pg.drawText(stampL1, {x:A4W/2-125, y:A4H-192, size:10.5, font:fR, color:rgb(.62,.09,.11)});
+    pg.drawText(stampL2, {x:A4W/2-125, y:A4H-210, size:9, font:fR, color:rgb(.4,.4,.43)});
+    const png = await out.embedPng(document.getElementById("sigc").toDataURL("image/png"));
+    pg.drawImage(png, {x:A4W/2-140, y:A4H-470, width:280, height:92});
+    pg.drawText("Firma e regjistruesit", {x:A4W/2-140, y:A4H-492, size:10, font:fR, color:rgb(.3,.3,.33)});
+    pg.drawText(RG_W(`Dosja: ${cs.no} · ${String(cs.title||"").slice(0,70)}`), {x:A4W/2-140, y:A4H-522, size:9, font:fR, color:rgb(.4,.4,.43)});
+    pg.drawText(RG_W(`Regjistruar më ${fmtD(new Date().toISOString())} · Arkiva Elektronike`), {x:A4W/2-140, y:A4H-540, size:9, font:fR, color:rgb(.4,.4,.43)});
+    stamp(pg);
+  }
+  const bytes = await out.save({useObjectStreams:false});
+  return new Blob([bytes], {type:"application/pdf"});
+}
+
 function registerPage(params){
   if(!can("regjistro")){
-    return shellRender("reg",[{t:"Arkiva",h:"#/"},{t:"Regjistro dokument"}],
+    return shellRender("reg",[{t:"Arkiva",h:"#/"},{t:"Protokollo një dokument"}],
       `<div class="empty">S'ke të drejtën e regjistrimit të dokumenteve.</div>`);
   }
+  rgReset();
   const cid = params.get("case") || (S.data.cases.find(c=>c.status==="hapur")||S.data.cases[0]||{}).id || "";
-  const dir = params.get("dir")==="dalje" ? "dalje" : "hyrje";
+  const dir = ["hyrje","dalje","brendshme"].includes(params.get("dir")) ? params.get("dir") : "hyrje";
   const kind0 = params.get("kind") || "shkresë";
   const reply0 = params.get("reply") || "";
-  shellRender("reg",[{t:"Arkiva",h:"#/"},{t:"Regjistro dokument"}],`
-  <div class="toolbar"><h2>Regjistro dokument në protokoll</h2></div>
+  shellRender("reg",[{t:"Arkiva",h:"#/"},{t:"Libri i protokollit",h:"#/libri"},{t:"Protokollo një dokument"}],`
+  <div class="toolbar"><h2>Protokollo një dokument</h2></div>
   <form id="regf" style="padding:0 22px 22px" novalidate>
+    <div class="rghero">
+      <div class="autobox">
+        <div class="ab-l">NR. I PROTOKOLLIT</div>
+        <div class="ab-v" id="protoInfo"></div>
+        <div class="ab-s">lëshohet vetëm në ruajtje — s'plotësohet nga ju dhe s'redaktohet kurrë</div>
+      </div>
+      <div class="autobox">
+        <div class="ab-l">DATA E PRANIMIT</div>
+        <div class="ab-v" id="regts">${fmtD(new Date().toISOString())}</div>
+        <div class="ab-s">regjistrohet automatikisht nga sistemi në çastin e ruajtjes</div>
+      </div>
+    </div>
     <div class="fgrid">
-      <div class="fld full"><label>Drejtimi</label>
-        <div class="radios">
-          <label><input type="radio" name="dir" value="hyrje" ${dir==="hyrje"?"checked":""}> Hyrje (H)</label>
-          <label><input type="radio" name="dir" value="dalje" ${dir==="dalje"?"checked":""}> Dalje (D)</label>
-        </div></div>
-      <div class="fld"><label>Numri i protokollit</label>
-        <input class="protoin" name="proto" id="fProto" value="${nextProto(dir)}" autocomplete="off">
-        <div class="hint" id="protoHint"></div></div>
-      <div class="fld"><label>Data e dokumentit</label><input type="date" name="date" value="${TODAY_ISO()}"></div>
-      <div class="fld full"><label>Dosja</label>
+      <div class="fld full"><label>Drejtimi i dokumentit</label>
+        <div class="seg">
+          <label><input type="radio" name="dir" value="hyrje" ${dir==="hyrje"?"checked":""}> ➜ Hyrëse (H)</label>
+          <label><input type="radio" name="dir" value="dalje" ${dir==="dalje"?"checked":""}> ➝ Dalëse (D)</label>
+          <label><input type="radio" name="dir" value="brendshme" ${dir==="brendshme"?"checked":""}> ⭮ Brendshme</label>
+        </div>
+        <div class="hint" id="dirHint"></div></div>
+      <div class="fld full"><label>Dosja (zëri në libër) <span class="req">*</span></label>
         <div class="combo" id="cs-wrap"><input id="cs-in" placeholder="Shkruani emrin ose numrin e dosjes…" autocomplete="off"><input type="hidden" id="cs-val"><div class="menu" id="cs-menu"></div></div>
         <div class="addbox" id="cs-add" style="display:none"></div></div>
-      <div class="fld full"><label>Lloji i dokumentit</label>
+      <div class="fld"><label>Korrespondenti — institucioni ose personi <span class="req">*</span></label>
+        <input name="from" id="rgFrom" maxlength="160" placeholder="emri i palës">
+        <div class="hint" id="fromHint"></div></div>
+      <div class="fld"><label>Lloji i dokumentit</label>
         <div class="combo" id="kd-wrap"><input id="kd-in" placeholder="Shkruani llojin…" autocomplete="off"><input type="hidden" id="kd-val"><div class="menu" id="kd-menu"></div></div>
         <div class="addbox" id="kd-add" style="display:none"></div></div>
-      <div class="fld full"><label>Skedari (PDF ose foto)</label>
-        <input type="file" name="file" id="fFile" accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff,image/*,application/pdf">
-        <div class="hint" id="fileHint"></div>
-        <div id="dupWarn"></div></div>
-      <div class="fld"><label>Nga / për kë</label><input name="from" placeholder="p.sh. Nexa Office sh.p.k."></div>
-      <div class="fld"><label>Lënda</label><input name="subject" maxlength="200" placeholder="Përshkrim i shkurtër i dokumentit"></div>
-      <div class="fld" id="dueWrap" style="display:none"><label>Afati i përgjigjes</label><input type="date" name="due"></div>
+      <div class="fld"><label>Nr. i dokumentit</label><input name="dno" maxlength="60" placeholder="nr./data e shkresës së palës (opsionale)"></div>
+      <div class="fld"><label>Data e dokumentit</label><input type="date" name="date" value="${TODAY_ISO()}"></div>
+      <div class="fld full"><label>Objekti — si duket në regjistër <span class="req">*</span></label>
+        <input name="subject" id="rgObj" maxlength="200" placeholder="përshkrim i shkurtër i përmbajtjes së dokumentit">
+        <div class="dupline" id="dupBox">Kontrolli i dublimit aktivizohet kur plotësohen korrespondenti dhe objekti.</div></div>
+      <div class="fld"><label>Kanali i ardhjes</label>
+        <select name="channel">${RG_CHANNELS.map(c=>`<option value="${c}">${c||"— pa kanal —"}</option>`).join("")}</select></div>
+      <div class="fld"><label>Referenca e dërguesit</label><input name="sref" maxlength="100" placeholder="p.sh. nr. i postës, ID e e-mailit (opsionale)"></div>
+      <div class="fld" id="dueWrap"><label>Afati i përgjigjes <span id="dueReq" style="display:none;color:var(--bad)">* i detyrueshëm për kërkesa</span></label>
+        <input type="date" name="due" id="rgDue">
+        <div class="btnqs">
+          <button type="button" class="btnq" data-d="3">+3 ditë</button>
+          <button type="button" class="btnq" data-d="7">+7 ditë</button>
+          <button type="button" class="btnq" data-d="15">+15 ditë</button>
+          <button type="button" class="btnq" data-d="30">+30 ditë</button>
+        </div></div>
+      <div class="fld"><label>Fletë konfidencialiteti</label>
+        <label class="switch"><input type="checkbox" name="conf"><span class="sw"></span> Dokument konfidencial</label></div>
+      <div class="fld"><label>Afati i ruajtjes</label>
+        <div class="seg">
+          <label><input type="radio" name="ret" value="A"> Klasa A</label>
+          <label><input type="radio" name="ret" value="B"> Klasa B</label>
+          <label><input type="radio" name="ret" value="C" checked> Klasa C</label>
+        </div>
+        <div class="hint" id="retHint"></div></div>
+      <div class="fld"><label>Ruajtja fizike</label><input name="phys" maxlength="120" placeholder="p.sh. Arkiv B — rafti 12"></div>
+      <div class="fld"><label>Etiketa</label>
+        <div class="chips">${RG_CHIPS.map(c=>`<button type="button" class="chip" data-t="${c}">${c}</button>`).join("")}</div>
+        <input name="tags" id="rgTags" maxlength="120" placeholder="etiketa me presje, p.sh. urgjent, ankesë"></div>
+      <div class="fld full"><label>Vërejtje (rreshti i librit)</label><input name="rem" maxlength="200" placeholder="shënim që duket në kolonën «Vërejtje» të librit (opsionale)"></div>
+      <div class="fld full"><label>Shënim i brendshëm</label><input name="inote" maxlength="200" placeholder="vetëm për stafin — nuk duket në libër (opsionale)"></div>
+      <div class="fld full"><label>Dokumenti — foto ose PDF <span class="req">*</span></label>
+        <div class="docsrc">
+          <button type="button" class="btn line" id="camBtn">📷 Hap kamerën</button>
+          <label class="btn line filebtn">📎 Nga pajisja (PDF ose foto)<input type="file" id="rgFile" accept=".pdf,application/pdf,image/*" hidden></label>
+        </div>
+        <div class="cambox" id="camBox" style="display:none">
+          <video id="camview" autoplay playsinline muted></video>
+          <div class="camrow">
+            <button type="button" class="btn red" id="shotBtn">📸 Fotografo fletën</button>
+            <button type="button" class="btn line" id="camStop">✕ Mbyll kamerën</button>
+          </div>
+          <div class="hint" id="camMsg" style="margin-top:8px"></div>
+        </div>
+        <div class="pdfchip" id="pdfChip" style="display:none">📄 <b id="pdfName"></b> <span class="sub" id="pdfInfo"></span> <button type="button" onclick="rgRemovePdf()">✕ hiq</button></div>
+        <div class="pagestrip" id="thumbs"></div>
+        <div class="hint" style="margin-top:8px">Fotot dhe PDF-ja montohen në <b>një PDF të vetme të pandryshueshme</b>, e vulosur me numrin e protokollit, bashkë me firmën tuaj.</div></div>
+      <div class="fld full"><label>Firma e regjistruesit (opsionale)</label>
+        <div class="sigrow">
+          <canvas id="sigc" width="520" height="170"></canvas>
+          <div>
+            <button type="button" class="btn line" onclick="rgSigClear()">Pastro firmën</button>
+            <div class="hint" style="margin-top:6px">Vizatoni me maus ose gisht. Firma montohet në faqen e fundit të PDF-së.</div>
+          </div>
+        </div></div>
       <div class="fld full" id="replyWrap" style="display:none"><label>Përgjigje ndaj kërkesës së hapur</label>
         <div class="combo" id="rp-wrap"><input id="rp-in" placeholder="Kërko sipas protokollit ose lëndës…" autocomplete="off"><input type="hidden" id="rp-val"><div class="menu" id="rp-menu"></div></div>
       </div>
     </div>
     <div id="formNotice"></div>
     <div class="fbtn">
-      <a href="#/dosje/${cid}" class="ghost" style="text-decoration:none">Anulo</a>
-      <button type="submit" class="btn red" id="saveBtn">Ruaj dhe protokollo</button>
+      <a href="#/" class="ghost" style="text-decoration:none">Anulo</a>
+      <button type="submit" class="btn red" id="saveBtn">Lësho numrin e protokollit</button>
     </div>
   </form>`);
 
   const f = document.getElementById("regf");
+
+  /* drejtimi: numri lëshohet vetëm në ruajtje */
+  const dirUI = () => {
+    const dv = f.dir.value, yr = YEAR();
+    document.getElementById("protoInfo").textContent = dv==="brendshme" ? "BRENDSHËM — PA NUMËR" : `${dv==="hyrje"?"H":"D"}-${yr}-####`;
+    document.getElementById("dirHint").textContent = dv==="brendshme"
+      ? "Dokumentet e brendshme s'marrin numër protokollit — regjistrohen pa numër."
+      : "Numri lëshohet automatikisht në ruajtje; sekuenca mund të lëvizë nëse regjistrohet një dokument tjetër më parë.";
+    document.getElementById("fromHint").textContent = dv==="hyrje" ? "Kush e dërgon dokumentin (p.sh. Ministria e Financave)" : dv==="dalje" ? "Kujt i dërgohet dokumenti (adresati)" : "Njësia ose personi i brendshëm";
+  };
+  f.querySelectorAll('input[name="dir"]').forEach(r=>r.addEventListener("change", dirUI));
+  dirUI();
+
+  /* afati i ruajtjes */
+  const retHint = () => { document.getElementById("retHint").textContent = RET_LABEL[f.ret.value] || "klasifikimi sipas afatit të ruajtjes"; };
+  f.querySelectorAll('input[name="ret"]').forEach(r=>r.addEventListener("change", retHint));
+  retHint();
+
+  /* butonat e afatit +3/+7/+15/+30 ditë */
+  f.querySelectorAll(".btnq").forEach(b=>b.addEventListener("click",()=>{ document.getElementById("rgDue").value = RG_ADD_DAYS(+b.dataset.d); }));
+
+  /* etiketat me chips */
+  document.querySelectorAll("#regf .chip").forEach(c=>c.addEventListener("click",()=>{
+    const inp=document.getElementById("rgTags");
+    const parts = inp.value.split(",").map(s=>s.trim()).filter(Boolean);
+    const i = parts.indexOf(c.dataset.t);
+    if(i>=0){ parts.splice(i,1); c.classList.remove("on"); } else { parts.push(c.dataset.t); c.classList.add("on"); }
+    inp.value = parts.join(", ");
+  }));
+
+  /* kontrolli i dublimit: vit + palë + objekt */
+  const rgDupCheck = () => {
+    const box=document.getElementById("dupBox");
+    const from=f.from.value.trim().toLowerCase(), subj=f.subject.value.trim().toLowerCase();
+    if(!from || !subj){
+      box.className="dupline";
+      box.innerHTML="Kontrolli i dublimit aktivizohet kur plotësohen korrespondenti dhe objekti.";
+      return;
+    }
+    const yr=String(YEAR());
+    const dup = S.data.docs.find(d=>!d.deleted && (d.regTs||"").startsWith(yr)
+      && (d.from||"").toLowerCase()===from && (d.subject||"").toLowerCase()===subj);
+    if(dup){
+      box.className="dupline warn";
+      box.innerHTML=`⚠ U gjet shënim i ngjashëm në regjistrin e këtij viti: <a href="#/dokument/${dup.id}"><b>${esc(dup.proto)}</b></a> · ${esc(dup.from)} — ${esc(dup.subject)}${dup.date?` (${dup.date})`:""}
+        <label class="dupconf"><input type="checkbox" id="rgDupOk"> Konfirmoj se ky regjistrim është i ndryshëm / dublikatë e qëllimshme</label>`;
+    } else {
+      box.className="dupline ok";
+      box.innerHTML="✓ Asnjë shënim i ngjashëm në regjistrin e këtij viti.";
+    }
+  };
+  const dupDeb = () => { clearTimeout(RGST.dupT); RGST.dupT=setTimeout(rgDupCheck,300); };
+  f.from.addEventListener("input", dupDeb);
+  f.subject.addEventListener("input", dupDeb);
+
+  /* kamera */
+  document.getElementById("camBtn").addEventListener("click", rgCamStart);
+  document.getElementById("shotBtn").addEventListener("click", rgShot);
+  document.getElementById("camStop").addEventListener("click", ()=>{ rgCamStop(); document.getElementById("camBox").style.display="none"; });
+
+  /* PDF ose foto nga pajisja */
+  document.getElementById("rgFile").addEventListener("change", e => {
+    const file = e.target.files[0]; if(!file) return;
+    if(file.type==="application/pdf" || /\.pdf$/i.test(file.name)){
+      RGST.pdf = file; RGST.pdfName = file.name;
+      document.getElementById("pdfName").textContent = file.name;
+      document.getElementById("pdfInfo").textContent = `· ${Math.max(1,Math.round(file.size/1024))} KB · do të vuloset me numrin e protokollit`;
+      document.getElementById("pdfChip").style.display = "inline-flex";
+    } else if(file.type && file.type.startsWith("image/")){
+      RGST.photos.push({url:URL.createObjectURL(file), blob:file, w:0, h:0});
+      rgThumbs();
+    } else {
+      toast("Lejohet vetëm PDF ose foto.");
+    }
+    e.target.value = "";
+  });
+
+  /* firma */
+  rgSigInit();
+
   const sync = () => {
     const k = document.getElementById("kd-val").value;
-    document.getElementById("dueWrap").style.display = k==="kërkesë" ? "" : "none";
+    document.getElementById("dueReq").style.display = k==="kërkesë" ? "" : "none";
     document.getElementById("replyWrap").style.display = k==="përgjigje" ? "" : "none";
     const cid2 = document.getElementById("cs-val").value, cs = caseOf(cid2);
     document.getElementById("formNotice").innerHTML = cs && cs.status==="mbyllur"
@@ -1190,85 +1589,85 @@ function registerPage(params){
   sync();
   if(reply0) RG_REPLY.set(reply0);
 
-  document.querySelectorAll('input[name="dir"]').forEach(r=>r.addEventListener("change",()=>{
-    const p=document.getElementById("fProto");
-    if(!p.dataset.touched) p.value = nextProto(r.value);
-    checkProto();
-  }));
-  const pIn=document.getElementById("fProto");
-  pIn.addEventListener("input",()=>{ pIn.dataset.touched="1"; checkProto(); });
+  ensurePDFLib();
+  /* ndalo kamerën kur largohet nga formulari */
+  const camWatch = () => { if(!location.hash.startsWith("#/regjistro")){ rgCamStop(); window.removeEventListener("hashchange", camWatch); } };
+  window.addEventListener("hashchange", camWatch);
 
-  f.file.addEventListener("change", async e => {
-    const file = e.target.files[0];
-    if(!file){ f.dataset.sha=""; document.getElementById("dupWarn").innerHTML=""; return; }
-    document.getElementById("fileHint").textContent = "Po llogaritet SHA-256…";
-    const sha = await fileSha(file);
-    f.dataset.sha = sha;
-    document.getElementById("fileHint").textContent = `${file.name} · ${Math.max(1,Math.round(file.size/1024))} KB`;
-    const dup = sha && S.data.docs.find(d=>d.sha===sha);
-    document.getElementById("dupWarn").innerHTML = dup ? `<div class="notice warn">Ky skedar është identik me <a href="#/dokument/${dup.id}">${esc(dup.proto)}</a>. Mund ta regjistroni përsëri, por do të shënohet si dublikat.</div>` : "";
-  });
   f.addEventListener("submit", e => { e.preventDefault(); saveReg(f); });
-}
-
-function checkProto(){
-  const v=document.getElementById("fProto").value.trim();
-  const hint=document.getElementById("protoHint"), inp=document.getElementById("fProto");
-  const taken = S.data.docs.some(d=>d.proto===v);
-  inp.classList.toggle("bad", !!taken || !v);
-  hint.textContent = !v ? "Numri i protokollit është i detyrueshëm." : taken ? "Ky numër është tashmë i përdorur. Zgjidhni një tjetër." : "";
-  hint.style.color = (taken||!v) ? "var(--bad)" : "";
-  return !taken && !!v;
 }
 
 async function saveReg(f){
   const err = t => { document.getElementById("formNotice").innerHTML = `<div class="notice bad">${t}</div>`; window.scrollTo(0,0); };
   const cs = caseOf(document.getElementById("cs-val").value);
   const kind = document.getElementById("kd-val").value;
-  const proto = document.getElementById("fProto").value.trim();
-  const pIn = document.getElementById("fProto");
-  if(!cs) return err("Zgjidhni dosjen (shkruani emrin dhe zgjidhni nga lista, ose shtoni dosje të re).");
-  if(cs.status==="mbyllur") return err("Dosja është e mbyllur.");
-  if(!checkProto()) return err("Numri i protokollit është bosh ose i përdorur.");
+  const from = f.from.value.trim(), subj = f.subject.value.trim();
+  const hasDoc = !!(RGST.photos.length || RGST.pdf);
+  /* 1 · MUNGON — grumbullo të gjitha fushat që mungojnë */
+  const miss = [];
+  if(!cs) miss.push("DOSJA (ZËRI)");
+  if(!from) miss.push("KORRESPONDENTI");
+  if(!subj) miss.push("OBJEKTI");
+  if(!hasDoc) miss.push("DOKUMENTI (foto ose PDF)");
+  if(miss.length) return err(`<b>MUNGON: ${miss.join(", ")}.</b> Plotësojini dhe provojeni sërish.`);
+  /* 2 · rregullat e dosjes dhe llojit */
+  if(cs.status==="mbyllur") return err("Dosja është e mbyllur — s'regjistrohen dokumente.");
   if(!kind) return err("Zgjidhni ose shtoni llojin e dokumentit.");
-  if(!f.from.value.trim()) return err("Plotësoni fushën «Nga / për kë».");
-  if(!f.subject.value.trim()) return err("Plotësoni lëndën.");
-  if(kind==="kërkesë" && !f.due.value) return err("Kërkesa duhet të ketë afat përgjigjeje.");
+  if(kind==="kërkesë" && !f.due.value) return err("Kërkesa duhet të ketë afat përgjigjeje (përdor butonat +3/+7/+15/+30 ditë).");
   const replyTo = document.getElementById("rp-val").value;
   if(kind==="përgjigje" && !replyTo) return err("Zgjidhni kërkesën e hapur ku i përgjigjeni, ose ndryshoni llojin.");
-  if(f.dataset.sha && S.data.docs.some(d=>d.sha===f.dataset.sha) && !confirm("Ky skedar ekziston tashmë në arkiv. Të regjistrohet përsëri si dublikat?")) return;
-
-  const saveBtn=document.getElementById("saveBtn"); saveBtn.disabled=true; saveBtn.textContent="Po ruhet…";
+  /* 3 · konfirmimi i dublimit */
+  const dupBox=document.getElementById("dupBox");
+  const dupOk=document.getElementById("rgDupOk");
+  if(dupBox.className.includes("warn") && !(dupOk && dupOk.checked))
+    return err("<b>KONFIRMIMI I DUBLIMIT:</b> në regjistrin e këtij viti ekziston një shënim i ngjashëm (e njëjta palë + objekt). Shënoni «Konfirmoj…» te Kontrolli i dublimit, ose ndryshoni objektin.");
+  /* 4 · moduli i PDF-së */
+  if(!(await ensurePDFLib())) return err("Moduli i ndërtimit të PDF-së s'u ngarkua. Kontrolloni lidhjen me internetin dhe rifreskoni faqen.");
+  const saveBtn = document.getElementById("saveBtn");
+  saveBtn.disabled = true; saveBtn.textContent = "Po lëshohet numri…";
   try{
     const dir = f.dir.value;
-    const file = f.file.files[0];
-    let storage_path=null, mime=null, size=null;
-    if(file){
-      const path = `${cs.id}/${Date.now()}_${file.name.replace(/[^\w.\-]+/g,"_")}`;
-      const up = await sb.storage.from("dokumente").upload(path, file, {contentType:file.type||"application/octet-stream", upsert:false});
-      if(up.error) return err("Ngarkimi i skedarit dështoi: "+esc(up.error.message));
-      storage_path=path; mime=file.type||null; size=file.size;
-    }
+    const labels = document.getElementById("rgTags").value.split(",").map(s=>s.trim()).filter(Boolean).join(", ");
     const row = {
-      case_id:cs.id, direction:dir, kind,
-      protocol_no: pIn.dataset.touched ? proto : null,
-      doc_date: f.date.value || null,
-      from_to: f.from.value.trim(), subject: f.subject.value.trim(),
+      case_id: cs.id, direction: dir, kind, protocol_no: null,
+      doc_date: f.date.value || null, from_to: from, subject: subj,
+      doc_no: f.dno.value.trim() || null, remarks: f.rem.value.trim() || null,
       due_date: kind==="kërkesë" ? (f.due.value||null) : null,
-      storage_path, mime, size_bytes:size, sha256: f.dataset.sha||null, ocr_text:""
+      channel: f.channel.value || null, sender_ref: f.sref.value.trim() || null,
+      confidential: !!(f.conf && f.conf.checked),
+      retention_class: f.ret.value || null,
+      physical_location: f.phys.value.trim() || null,
+      labels: labels || null, internal_note: f.inote.value.trim() || null,
+      storage_path: null, mime: null, size_bytes: null, sha256: null, ocr_text: ""
     };
     const ins = await sb.from("correspondence").insert(row).select().single();
     if(ins.error) return err("Regjistrimi dështoi: "+esc(ins.error.message));
+    const docId = ins.data.id, proto = ins.data.protocol_no || "";
+    /* 5 · montimi + ngarkimi i PDF-së së vulosur (pas lëshimit të numrit) */
+    try{
+      const blob = await rgBuildPdf(proto, dir, f, cs);
+      const sha = await fileSha(blob);
+      const fname = `protokoll${proto?"_"+proto.replace(/[^\w\-]+/g,"-"):"_brendshem"}.pdf`;
+      const path = `${cs.id}/${Date.now()}_${fname}`;
+      const up = await sb.storage.from("dokumente").upload(path, blob, {contentType:"application/pdf", upsert:false});
+      if(up.error) throw up.error;
+      const pat = await sb.from("correspondence").update({storage_path:path, mime:"application/pdf", size_bytes:blob.size, sha256:sha}).eq("id",docId);
+      if(pat.error) throw pat.error;
+    }catch(e){
+      await sb.from("correspondence").update({deleted_at:new Date().toISOString()}).eq("id",docId);
+      return err("Numri u lëshua, por ruajtja e PDF-së dështoi ("+esc(String((e&&e.message)||e))+"). Regjistrimi u anulua dhe numri i lihet bosh — provojeni sërish.");
+    }
     if(kind==="përgjigje" && replyTo){
-      const lk = await sb.from("correspondence_links").insert({from_id:ins.data.id, to_id:replyTo, relation:"pergjigje_per"});
+      const lk = await sb.from("correspondence_links").insert({from_id:docId, to_id:replyTo, relation:"pergjigje_per"});
       if(lk.error) toast("Lidhja me kërkesën dështoi: "+lk.error.message);
     }
     await refresh();
-    const saved = docById(ins.data.id);
-    toast(`U regjistrua: ${ins.data.protocol_no||"—"} · dokumenti #${saved?.idx||"?"} i dosjes ${cs.no}`);
-    location.hash = "#/dokument/"+ins.data.id;
+    const saved = docById(docId);
+    toast(`U protokollua: ${proto||"dokument i brendshëm pa numër"} · ${saved?`dokumenti #${saved.idx} i dosjes ${cs.no}`:""}`);
+    rgCamStop();
+    location.hash = "#/dokument/"+docId;
   } finally {
-    saveBtn.disabled=false; saveBtn.textContent="Ruaj dhe protokollo";
+    saveBtn.disabled = false; saveBtn.textContent = "Lësho numrin e protokollit";
   }
 }
 
@@ -1287,7 +1686,16 @@ function editDoc(id){
       <div class="fld"><label>Nga / për kë</label><input name="from" value="${esc(d.from)}"></div>
       <div class="fld"><label>Lloji</label><select name="kind">${kinds.map(k=>`<option ${k===d.kind?"selected":""}>${esc(k)}</option>`).join("")}</select></div>
       <div class="fld"><label>Data e dokumentit</label><input type="date" name="date" value="${isoOf(d.date)}"></div>
+      <div class="fld"><label>Nr. i dokumentit</label><input name="dno" value="${esc(d.docNo)}" maxlength="60"></div>
+      <div class="fld full"><label>Vërejtje</label><input name="rem" value="${esc(d.rem)}" maxlength="200"></div>
       <div class="fld"><label>Afati (vetëm për kërkesa)</label><input type="date" name="due" value="${d.due?isoOf(d.due):""}"></div>
+      <div class="fld"><label>Kanali</label><select name="channel">${RG_CHANNELS.map(c=>`<option value="${c}" ${c===(d.ch||"")?"selected":""}>${c||"— pa kanal —"}</option>`).join("")}</select></div>
+      <div class="fld"><label>Ref. e dërguesit</label><input name="sref" value="${esc(d.sref)}" maxlength="100"></div>
+      <div class="fld"><label>Konfidenciale</label><label class="switch"><input type="checkbox" name="conf" ${d.conf?"checked":""}><span class="sw"></span> Fletë konfidencialiteti</label></div>
+      <div class="fld"><label>Afati i ruajtjes</label><div class="seg">${["A","B","C"].map(r=>`<label><input type="radio" name="ret" value="${r}" ${r===(d.ret||"C")?"checked":""}> Klasa ${r}</label>`).join("")}</div><div class="hint">${esc(RET_LABEL[d.ret||"C"]||"")}</div></div>
+      <div class="fld"><label>Ruajtja fizike</label><input name="phys" value="${esc(d.ploc)}" maxlength="120" placeholder="p.sh. Arkiv B — rafti 12"></div>
+      <div class="fld"><label>Etiketa</label><input name="labels" value="${esc(d.labels)}" maxlength="120" placeholder="me presje, p.sh. urgjent, ankesë"></div>
+      <div class="fld full"><label>Shënim i brendshëm</label><input name="inote" value="${esc(d.inote)}" maxlength="200"></div>
     </div>
     <div id="editNotice"></div>
     <div class="fbtn"><a class="ghost" style="text-decoration:none" href="#/dokument/${d.id}">Anulo</a>
@@ -1302,7 +1710,12 @@ function editDoc(id){
     if(!from) return note("Plotësoni fushën «Nga / për kë».");
     if(kind==="kërkesë" && !f.due.value) return note("Kërkesa duhet të ketë afat përgjigjeje.");
     const patch={ subject, from_to:from, kind, doc_date:f.date.value||null,
-      due_date: kind==="kërkesë" ? (f.due.value||null) : null };
+      doc_no:f.dno.value.trim()||null, remarks:f.rem.value.trim()||null,
+      due_date: kind==="kërkesë" ? (f.due.value||null) : null,
+      channel: f.channel.value||null, sender_ref: f.sref.value.trim()||null,
+      confidential: !!(f.conf&&f.conf.checked), retention_class: f.ret.value||null,
+      physical_location: f.phys.value.trim()||null, labels: f.labels.value.trim()||null,
+      internal_note: f.inote.value.trim()||null };
     const {error} = await sb.from("correspondence").update(patch).eq("id",id);
     if(error) return note("Ruajtja dështoi: "+esc(error.message));
     toast("Ndryshimet u ruajtën");
@@ -1317,6 +1730,65 @@ async function deleteDoc(id){
   if(error) return toast(error.message);
   toast("Dokumenti u fshi (mbetet në gjurmim)");
   await refresh(); casePage(d.case);
+}
+
+/* ---------- LIBRI I PROTOKOLLIT: regjistri zyrtar online ---------- */
+function libriPage(params){
+  const dir = params.get("dir")==="hyrje"?"hyrje":params.get("dir")==="dalje"?"dalje":"";
+  const q = (params.get("q")||"").trim(), ql=q.toLowerCase();
+  const teGjitha = S.data.docs.filter(d=>!d.deleted);
+  const nH = teGjitha.filter(d=>d.dir==="hyrje").length;
+  const nD = teGjitha.filter(d=>d.dir==="dalje").length;
+  let docs = teGjitha;
+  if(dir) docs = docs.filter(d=>d.dir===dir);
+  if(ql) docs = docs.filter(d=>{
+    const c=caseOf(d.case);
+    return `${d.proto} ${d.docNo} ${d.from} ${d.subject} ${d.rem} ${c?c.no+" "+c.title:""}`.toLowerCase().includes(ql);
+  });
+  docs = docs.slice().sort((a,b)=>String(a.regTs||"").localeCompare(String(b.regTs||"")));
+  const qs = q?`&q=${encodeURIComponent(q)}`:"";
+  const tab=(h,lbl,n,on)=>`<a href="${h}" class="${on?"on":""}">${lbl} <span style="opacity:.6">${n}</span></a>`;
+  shellRender("libri",[{t:"Arkiva",h:"#/"},{t:"Libri i Protokollit"}],`
+  <div class="booktools no-print">
+    <div class="booktabs">
+      ${tab("#/libri"+qs,"Të gjitha",teGjitha.length,!dir)}
+      ${tab("#/libri?dir=hyrje"+qs,"Hyrje",nH,dir==="hyrje")}
+      ${tab("#/libri?dir=dalje"+qs,"Dalje",nD,dir==="dalje")}
+    </div>
+    <form class="sbox" style="margin:0;min-width:280px;flex:1;max-width:420px" onsubmit="event.preventDefault();location.hash='#/libri?${dir?`dir=${dir}&`:""}q='+encodeURIComponent(this.q.value)">
+      ${ico.search}<input name="q" value="${esc(q)}" placeholder="Kërko protokoll, palë, lëndë, dosje…" autocomplete="off">
+    </form>
+    ${can("regjistro")?`<button class="btn red" onclick="location.hash='#/regjistro?dir=${dir||"hyrje"}'">＋ Regjistro në libër</button>`:""}
+    <button class="btn line" onclick="window.print()">🖨 Printo librin</button>
+  </div>
+  <div class="book">
+    <div class="bhead">
+      <h2>LIBRI I PROTOKOLLIT</h2>
+      <div class="bsub">Regjistri elektronik i dokumenteve të hyra e të dala · Arkiva Elektronike${dir==="hyrje"?" · vetëm dokumente hyrje":dir==="dalje"?" · vetëm dokumente dalje":""}${q?` · kërkim: «${esc(q)}»`:""}</div>
+      <div class="bsub printdate">Shtypur më ${fmtDT(new Date().toISOString())} · ${docs.length} regjistrime</div>
+    </div>
+    <table>
+      <thead><tr>
+        <th style="width:120px">Nr. i protokollit</th><th style="width:110px">Data e regjistrimit</th><th style="width:120px">Nr. i dokumentit</th><th style="width:110px">Data e dokumentit</th>
+        <th>Nga / për</th><th>Përmbajtja</th><th style="width:170px">Zëri (dosja)</th><th style="width:170px">Vërejtje</th>
+      </tr></thead>
+      <tbody>
+        ${docs.length?docs.map(d=>{
+          const c=caseOf(d.case);
+          return `<tr>
+            <td class="proto"><a href="#/dokument/${d.id}">${esc(d.proto)}</a><div class="tagline ${d.dir==="hyrje"?"h":d.dir==="brendshme"?"b":"d"}" style="margin-top:4px;display:inline-block">${d.dir==="hyrje"?"HYRJE":d.dir==="brendshme"?"BRENDSHME":"DALJE"}</div></td>
+            <td>${d.regTs?fmtD(d.regTs):"—"}</td>
+            <td>${esc(d.docNo||"—")}</td>
+            <td>${d.date||"—"}</td>
+            <td>${esc(d.from||"—")}</td>
+            <td>${esc(d.subject)}${d.path?` <a href="#/dokument/${d.id}" title="ka skedar të skanuar">📎</a>`:""}</td>
+            <td>${c?`<a href="#/dosje/${c.id}">${esc(c.no)}</a><div style="font-size:11.5px;color:var(--muted);margin-top:2px">${esc(c.title)}</div>`:"—"}</td>
+            <td>${esc(d.rem||"—")}</td>
+          </tr>`;}).join("")
+        :`<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:36px">Libri nuk ka regjistrime${q?" për kërkimin e dhënë":""}.</td></tr>`}
+      </tbody>
+    </table>
+  </div>`);
 }
 
 /* ---------- kontratat: regjistrim, pagesa, kujtesa 7-ditore ---------- */
@@ -1785,6 +2257,7 @@ function route(){
   if(path.startsWith("#/dosje/")) return casePage(path.split("/")[2]);
   if(path.startsWith("#/dokument/")) return docPage(path.split("/")[2]);
   if(path.startsWith("#/ndrysho/")) return editDoc(path.split("/")[2]);
+  if(path.startsWith("#/libri")) return libriPage(params);
   if(path.startsWith("#/dosjet")) return casesPage(params);
   if(path.startsWith("#/kerkesat")) return requestsPage(params);
   if(path.startsWith("#/kerko")) return searchPage(params);
